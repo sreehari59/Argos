@@ -483,7 +483,8 @@
         "data_quality": "estimated",
         "normalized": {
           "price_per_100g": 15.0,
-          "serving_size_g": 10
+          "serving_size_g": 10,
+          "price_per_serving": 1.5
         }
       },
       "company_data": {
@@ -1575,7 +1576,8 @@
         "data_quality": "estimated",
         "normalized": {
           "price_per_100g": 5.0,
-          "serving_size_g": 30
+          "serving_size_g": 30,
+          "price_per_serving": 1.5
         }
       },
       "company_data": {
@@ -1982,7 +1984,8 @@
         "data_quality": "estimated",
         "normalized": {
           "price_per_100g": 15.0,
-          "serving_size_g": 10
+          "serving_size_g": 10,
+          "price_per_serving": 1.5
         }
       },
       "company_data": {
@@ -2264,7 +2267,8 @@
         "data_quality": "estimated",
         "normalized": {
           "price_per_100g": 15.0,
-          "serving_size_g": 10
+          "serving_size_g": 10,
+          "price_per_serving": 1.5
         }
       },
       "company_data": {
@@ -2343,7 +2347,8 @@
         "data_quality": "estimated",
         "normalized": {
           "price_per_100g": 4.5,
-          "serving_size_g": 30
+          "serving_size_g": 30,
+          "price_per_serving": 1.35
         }
       },
       "company_data": {
@@ -2409,7 +2414,8 @@
         "data_quality": "estimated",
         "normalized": {
           "price_per_100g": 15.0,
-          "serving_size_g": 10
+          "serving_size_g": 10,
+          "price_per_serving": 1.5
         }
       },
       "company_data": {
@@ -2531,7 +2537,8 @@
         "data_quality": "estimated",
         "normalized": {
           "price_per_100g": 4.5,
-          "serving_size_g": 30
+          "serving_size_g": 30,
+          "price_per_serving": 1.35
         }
       },
       "company_data": {
@@ -2920,7 +2927,8 @@
         "data_quality": "estimated",
         "normalized": {
           "price_per_100g": 15.0,
-          "serving_size_g": 10
+          "serving_size_g": 10,
+          "price_per_serving": 1.5
         }
       },
       "company_data": {
@@ -3464,7 +3472,8 @@
         "data_quality": "estimated",
         "normalized": {
           "price_per_100g": 4.5,
-          "serving_size_g": 30
+          "serving_size_g": 30,
+          "price_per_serving": 1.35
         }
       },
       "company_data": {
@@ -3748,7 +3757,8 @@
         "data_quality": "estimated",
         "normalized": {
           "price_per_100g": 15.0,
-          "serving_size_g": 10
+          "serving_size_g": 10,
+          "price_per_serving": 1.5
         }
       },
       "company_data": {

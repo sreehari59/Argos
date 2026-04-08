@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Supply Chain Knowledge Graph - Enhanced</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#0a0e1a;color:#e2e8f0;overflow:hidden;height:100vh}
+#app{display:flex;height:100vh}
+
+/* ── Sidebar ── */
+#sidebar{width:360px;min-width:360px;background:#111827;border-right:1px solid #1f2937;display:flex;flex-direction:column;overflow:hidden;z-index:2}
+.sidebar-header{padding:14px 16px;border-bottom:1px solid #1f2937;background:linear-gradient(135deg,#111827,#1a1f35)}
+.sidebar-header h1{font-size:15px;font-weight:700;letter-spacing:-0.3px;background:linear-gradient(135deg,#818cf8,#6ee7b7);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sidebar-header .subtitle{font-size:10px;color:#6b7280;margin-top:2px;line-height:1.4}
+
+/* ── View Tabs ── */
+#view-tabs{display:flex;border-bottom:1px solid #1f2937;background:#0f1320;overflow-x:auto}
+.tab{flex:1;padding:9px 6px;font-size:10px;text-align:center;cursor:pointer;color:#6b7280;border-bottom:2px solid transparent;transition:all .2s;font-weight:500;letter-spacing:.3px;text-transform:uppercase;white-space:nowrap}
+.tab:hover{color:#d1d5db;background:#111827}
+.tab.active{color:#818cf8;border-bottom-color:#818cf8;background:#111827}
+
+/* ── Filters ── */
+#filters{padding:8px 14px;border-bottom:1px solid #1f2937;background:#0f1320}
+#filters h3{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin-bottom:6px;font-weight:600}
+.filter-group{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px}
+.filter-btn{padding:3px 8px;border-radius:4px;font-size:10px;cursor:pointer;border:1px solid #1f2937;background:#111827;color:#9ca3af;transition:all .15s}
+.filter-btn:hover{border-color:#374151;background:#1f2937}
+.filter-btn.active{border-color:#818cf8;background:#1e1b4b;color:#818cf8}
+
+/* ── Sections ── */
+.section{padding:10px 14px;border-bottom:1px solid #1f2937}
+.section h3{font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:#6b7280;margin-bottom:8px;font-weight:600}
+#search{width:100%;padding:8px 12px;border-radius:6px;border:1px solid #1f2937;background:#0a0e1a;color:#e2e8f0;font-size:12px;outline:none;transition:border .2s}
+#search:focus{border-color:#818cf8}
+#search::placeholder{color:#374151}
+
+/* ── Legend ── */
+.legend-item{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:11px;cursor:pointer;transition:opacity .2s}
+.legend-item:hover{opacity:.8}
+.legend-item .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;border:1px solid rgba(255,255,255,.1)}
+.legend-item .count{margin-left:auto;color:#4b5563;font-size:10px;font-weight:600}
+
+/* ── Insights Panel ── */
+#insights{padding:10px 14px;border-bottom:1px solid #1f2937;max-height:160px;overflow-y:auto}
+.insight-card{background:#0a0e1a;border:1px solid #1f2937;border-radius:6px;padding:7px 9px;margin-bottom:5px;font-size:10px;line-height:1.4;cursor:pointer;transition:border .2s}
+.insight-card:hover{border-color:#818cf8}
+.insight-card .insight-title{color:#818cf8;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.insight-card .insight-value{color:#d1d5db;font-size:10px}
+.insight-card .insight-sub{color:#6b7280;font-size:9px}
+
+/* ── Details Panel ── */
+#details{flex:1;overflow-y:auto;padding:12px 14px}
+#details h3{font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:#6b7280;margin-bottom:8px;font-weight:600}
+#details .empty{color:#374151;font-size:12px;font-style:italic}
+.detail-card{background:#0a0e1a;border-radius:6px;padding:9px;margin-bottom:6px;border:1px solid #1f2937}
+.detail-card .label{font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+.detail-card .value{font-size:12px;margin-top:1px;word-break:break-word}
+.badge{display:inline-block;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:600;margin-left:4px}
+.risk-badge{display:inline-block;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:600}
+.risk-high{background:#7f1d1d;color:#fca5a5}
+.risk-med{background:#78350f;color:#fcd34d}
+.risk-low{background:#064e3b;color:#6ee7b7}
+.cert-badge{background:#1e3a8a;color:#93c5fd;padding:2px 5px;border-radius:3px;font-size:9px;margin:2px;display:inline-block}
+.connection-list{list-style:none;max-height:220px;overflow-y:auto}
+.connection-list li{padding:5px 8px;font-size:11px;border-bottom:1px solid #111827;display:flex;align-items:center;gap:6px;cursor:pointer;transition:background .15s;border-radius:4px}
+.connection-list li:hover{background:#1f2937}
+.rel-type{color:#9ca3af;font-size:9px;background:#1f2937;padding:1px 5px;border-radius:3px;white-space:nowrap;font-weight:500}
+
+/* ── Graph ── */
+#graph-container{flex:1;position:relative;background:radial-gradient(ellipse at center,#0f1525 0%,#0a0e1a 70%)}
+svg{width:100%;height:100%}
+.link{fill:none;stroke-linecap:round}
+.link.dimmed{stroke-opacity:.02!important}
+.link.highlighted{stroke-opacity:.9!important}
+.node circle{cursor:pointer;transition:stroke .15s,stroke-width .15s,filter .15s}
+.node.selected circle{stroke:#fff;stroke-width:3;filter:drop-shadow(0 0 10px rgba(255,255,255,.5))}
+.node.neighbor circle{stroke:rgba(255,255,255,.7);stroke-width:2;filter:drop-shadow(0 0 5px rgba(255,255,255,.2))}
+.node.dimmed circle{opacity:.08}
+.node.dimmed .node-label{opacity:0}
+.node.search-match circle{stroke:#fbbf24;stroke-width:2.5;filter:drop-shadow(0 0 6px rgba(251,191,36,.5))}
+.node-label{font-size:9px;fill:#94a3b8;pointer-events:none;text-anchor:middle;dominant-baseline:central;paint-order:stroke;stroke:#0a0e1a;stroke-width:3px;stroke-linecap:round;stroke-linejoin:round;font-weight:500}
+
+/* ── Controls ── */
+#controls{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:4px}
+#controls button{background:#111827;color:#d1d5db;border:1px solid #1f2937;border-radius:8px;width:34px;height:34px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s}
+#controls button:hover{background:#1f2937;border-color:#374151}
+#tooltip{position:absolute;background:#1e293b;border:1px solid #374151;border-radius:8px;padding:10px 14px;font-size:11px;pointer-events:none;opacity:0;transition:opacity .12s;max-width:320px;box-shadow:0 12px 40px rgba(0,0,0,.6);z-index:10}
+#tooltip .tt-type{font-size:9px;text-transform:uppercase;letter-spacing:.8px;margin-bottom:2px;font-weight:600}
+#tooltip .tt-name{font-size:13px;font-weight:600}
+#tooltip .tt-extra{color:#9ca3af;font-size:10px;margin-top:3px}
+#stats{position:absolute;bottom:10px;left:10px;font-size:10px;color:#374151;letter-spacing:.3px}
+#view-label{position:absolute;top:14px;left:14px;font-size:12px;color:#4b5563;font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+</style>
+</head>
+<body>
+<div id="app">
+<div id="sidebar">
+  <div class="sidebar-header">
+    <h1>Supply Chain Knowledge Graph</h1>
+    <div class="subtitle">Complete traceability: 61 companies • 149 finished goods • 876 raw materials • 40 suppliers</div>
+  </div>
+  <div id="view-tabs">
+    <div class="tab active" data-view="full-chain">Full Chain</div>
+    <div class="tab" data-view="materials">Materials</div>
+    <div class="tab" data-view="risk">Risk</div>
+    <div class="tab" data-view="products">Products</div>
+  </div>
+  <div id="filters">
+    <h3>Filters</h3>
+    <div class="filter-group" id="company-filter-group" style="display:none">
+      <label style="font-size:11px;color:#9ca3af;margin-bottom:4px;display:block">Companies</label>
+      <select id="company-filter" multiple style="width:100%;background:#1f2937;border:1px solid #374151;color:#e2e8f0;padding:6px;border-radius:4px;font-size:11px;max-height:120px">
+        <option value="">All Companies</option>
+      </select>
+    </div>
+    <div class="filter-group" id="supplier-filter-group" style="display:none;margin-top:12px">
+      <label style="font-size:11px;color:#9ca3af;margin-bottom:4px;display:block">Suppliers</label>
+      <select id="supplier-filter" multiple style="width:100%;background:#1f2937;border:1px solid #374151;color:#e2e8f0;padding:6px;border-radius:4px;font-size:11px;max-height:120px">
+        <option value="">All Suppliers</option>
+      </select>
+    </div>
+    <div class="filter-group" id="category-filters"></div>
+    <div class="filter-group" id="cert-filters"></div>
+  </div>
+  <div class="section">
+    <h3>Search</h3>
+    <input type="text" id="search" placeholder="Search companies, products, suppliers, materials..." />
+  </div>
+  <div class="section" id="legend-section">
+    <h3>Legend</h3>
+    <div id="legend"></div>
+  </div>
+  <div id="insights">
+    <h3 style="font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:#6b7280;margin-bottom:8px;font-weight:600;padding:0">Key Insights</h3>
+  </div>
+  <div id="details">
+    <h3>Details</h3>
+    <p class="empty">Click a node to explore supply chain</p>
+  </div>
+</div>
+<div id="graph-container">
+  <svg id="graph"></svg>
+  <div id="view-label">Full Supply Chain View</div>
+  <div id="controls">
+    <button id="zoom-in" title="Zoom In">+</button>
+    <button id="zoom-out" title="Zoom Out">−</button>
+    <button id="zoom-reset" title="Reset View">⟲</button>
+  </div>
+  <div id="tooltip"></div>
+  <div id="stats"></div>
+</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// LOAD COMPREHENSIVE DATA
+// ═══════════════════════════════════════════════════════════════════════════
+let comprehensiveData = null;
+let activeFilters = {categories: new Set(), certifications: new Set(), companies: new Set(), suppliers: new Set()};
+
+async function loadData() {
+  const resp = await fetch('comprehensive_supply_chain.json');
+  comprehensiveData = await resp.json();
+  console.log('Loaded comprehensive data:', comprehensiveData.statistics);
+  initializeFilters();
+  switchView('full-chain');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FILTERS
+// ═══════════════════════════════════════════════════════════════════════════
+function initializeFilters() {
+  const categories = new Set();
+  const certifications = new Set();
+  
+  Object.values(comprehensiveData.product_metadata || {}).forEach(meta => {
+    if (meta.category && meta.category !== 'unknown' && meta.category !== 'scrape_failed' && meta.category !== 'blocked_page') {
+      categories.add(meta.category);
+    }
+    if (meta.dietary_flags) {
+      try {
+        const flags = JSON.parse(meta.dietary_flags);
+        flags.forEach(f => certifications.add(f));
+      } catch(e) {}
+    }
+  });
+  
+  // Populate company filter
+  const companySelect = document.getElementById('company-filter');
+  comprehensiveData.companies.sort((a, b) => a.name.localeCompare(b.name)).forEach(company => {
+    const option = document.createElement('option');
+    option.value = company.id;
+    option.textContent = company.name;
+    companySelect.appendChild(option);
+  });
+  companySelect.addEventListener('change', () => {
+    activeFilters.companies.clear();
+    Array.from(companySelect.selectedOptions).forEach(opt => {
+      if (opt.value) activeFilters.companies.add(parseInt(opt.value));
+    });
+    applyFilters();
+  });
+  
+  // Populate supplier filter
+  const supplierSelect = document.getElementById('supplier-filter');
+  comprehensiveData.suppliers.sort((a, b) => a.name.localeCompare(b.name)).forEach(supplier => {
+    const option = document.createElement('option');
+    option.value = supplier.id;
+    option.textContent = supplier.name;
+    supplierSelect.appendChild(option);
+  });
+  supplierSelect.addEventListener('change', () => {
+    activeFilters.suppliers.clear();
+    Array.from(supplierSelect.selectedOptions).forEach(opt => {
+      if (opt.value) activeFilters.suppliers.add(parseInt(opt.value));
+    });
+    applyFilters();
+  });
+  
+  const catFilters = document.getElementById('category-filters');
+  catFilters.innerHTML = '<span style="font-size:9px;color:#6b7280;margin-right:4px">Category:</span>';
+  Array.from(categories).sort().forEach(cat => {
+    const btn = document.createElement('span');
+    btn.className = 'filter-btn';
+    btn.textContent = cat.replace(/_/g, ' ');
+    btn.dataset.category = cat;
+    btn.onclick = () => toggleFilter('category', cat, btn);
+    catFilters.appendChild(btn);
+  });
+  
+  const certFilters = document.getElementById('cert-filters');
+  certFilters.innerHTML = '<span style="font-size:9px;color:#6b7280;margin-right:4px">Cert:</span>';
+  Array.from(certifications).sort().slice(0, 6).forEach(cert => {
+    const btn = document.createElement('span');
+    btn.className = 'filter-btn';
+    btn.textContent = cert.replace(/_/g, ' ');
+    btn.dataset.cert = cert;
+    btn.onclick = () => toggleFilter('cert', cert, btn);
+    certFilters.appendChild(btn);
+  });
+}
+
+function toggleFilter(type, value, btn) {
+  const filterSet = type === 'category' ? activeFilters.categories : activeFilters.certifications;
+  if (filterSet.has(value)) {
+    filterSet.delete(value);
+    btn.classList.remove('active');
+  } else {
+    filterSet.add(value);
+    btn.classList.add('active');
+  }
+  applyFilters();
+}
+
+function applyFilters() {
+  const hasFilters = activeFilters.categories.size > 0 || activeFilters.certifications.size > 0 || 
+                     activeFilters.companies.size > 0 || activeFilters.suppliers.size > 0;
+  
+  if (!hasFilters) {
+    nodeElements.classed('dimmed', false);
+    linkElements.classed('dimmed', false);
+    return;
+  }
+  
+  const visibleNodes = new Set();
+  const visibleLinks = new Set();
+  
+  // If companies are filtered, start from companies
+  if (activeFilters.companies.size > 0) {
+    activeFilters.companies.forEach(companyId => {
+      visibleNodes.add(`c-${companyId}`);
+      
+      // Add all FGs for this company
+      comprehensiveData.finished_goods.forEach(fg => {
+        if (fg.company_id === companyId) {
+          visibleNodes.add(`fg-${fg.id}`);
+          visibleLinks.add(`fg-${fg.id}|c-${companyId}`);
+          
+          // Add all RMs for these FGs
+          const rmIds = comprehensiveData.fg_to_rms[fg.id] || [];
+          rmIds.forEach(rmId => {
+            visibleNodes.add(`rm-${rmId}`);
+            visibleLinks.add(`fg-${fg.id}|rm-${rmId}`);
+            
+            // Add suppliers for these RMs
+            const supplierIds = comprehensiveData.rm_to_suppliers[rmId] || [];
+            supplierIds.forEach(sid => {
+              visibleNodes.add(`s-${sid}`);
+              visibleLinks.add(`s-${sid}|rm-${rmId}`);
+            });
+          });
+        }
+      });
+    });
+  }
+  
+  // If suppliers are filtered, add their connections
+  if (activeFilters.suppliers.size > 0) {
+    activeFilters.suppliers.forEach(supplierId => {
+      visibleNodes.add(`s-${supplierId}`);
+      
+      // Add all RMs supplied by this supplier
+      const rmIds = comprehensiveData.supplier_to_rms[supplierId] || [];
+      rmIds.forEach(rmId => {
+        visibleNodes.add(`rm-${rmId}`);
+        visibleLinks.add(`s-${supplierId}|rm-${rmId}`);
+        
+        // Add FGs that use these RMs
+        comprehensiveData.finished_goods.forEach(fg => {
+          const fgRMs = comprehensiveData.fg_to_rms[fg.id] || [];
+          if (fgRMs.includes(rmId)) {
+            visibleNodes.add(`fg-${fg.id}`);
+            visibleLinks.add(`fg-${fg.id}|rm-${rmId}`);
+            
+            // Add company for this FG
+            visibleNodes.add(`c-${fg.company_id}`);
+            visibleLinks.add(`fg-${fg.id}|c-${fg.company_id}`);
+          }
+        });
+      });
+    });
+  }
+  
+  // Apply category/certification filters on top of company/supplier filters
+  const matchingFGs = new Set();
+  Object.entries(comprehensiveData.product_metadata || {}).forEach(([pid, meta]) => {
+    let matches = true;
+    if (activeFilters.categories.size > 0 && !activeFilters.categories.has(meta.category)) {
+      matches = false;
+    }
+    if (activeFilters.certifications.size > 0 && meta.dietary_flags) {
+      try {
+        const flags = JSON.parse(meta.dietary_flags);
+        if (!flags.some(f => activeFilters.certifications.has(f))) {
+          matches = false;
+        }
+      } catch(e) {
+        matches = false;
+      }
+    }
+    if (matches) matchingFGs.add(`fg-${pid}`);
+  });
+  
+  // Combine company/supplier filters with category/cert filters
+  if (activeFilters.companies.size > 0 || activeFilters.suppliers.size > 0) {
+    // If we have company/supplier filters, intersect with category/cert filters
+    if (activeFilters.categories.size > 0 || activeFilters.certifications.size > 0) {
+      // Keep only nodes that match both company/supplier AND category/cert
+      const finalVisible = new Set();
+      visibleNodes.forEach(nodeId => {
+        if (nodeId.startsWith('fg-') && matchingFGs.has(nodeId)) {
+          finalVisible.add(nodeId);
+        } else if (!nodeId.startsWith('fg-')) {
+          finalVisible.add(nodeId);
+        }
+      });
+      
+      nodeElements.classed('dimmed', d => !finalVisible.has(d.id));
+      linkElements.classed('dimmed', d => {
+        const linkId = `${d.source.id}|${d.target.id}`;
+        const reverseLinkId = `${d.target.id}|${d.source.id}`;
+        return !visibleLinks.has(linkId) && !visibleLinks.has(reverseLinkId);
+      });
+    } else {
+      // Only company/supplier filters
+      nodeElements.classed('dimmed', d => !visibleNodes.has(d.id));
+      linkElements.classed('dimmed', d => {
+        const linkId = `${d.source.id}|${d.target.id}`;
+        const reverseLinkId = `${d.target.id}|${d.source.id}`;
+        return !visibleLinks.has(linkId) && !visibleLinks.has(reverseLinkId);
+      });
+    }
+  } else {
+    // Only category/cert filters
+    nodeElements.classed('dimmed', d => {
+      if (d.type === 'FinishedGood') return !matchingFGs.has(d.id);
+      return false;
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GRAPH BUILDER
+// ═══════════════════════════════════════════════════════════════════════════
+const nodeColors = {Company:'#818cf8', FinishedGood:'#34d399', RawMaterial:'#ef4444', Supplier:'#fbbf24', Category:'#f472b6'};
+const linkColors = {MANUFACTURED_BY:'#818cf8', SUPPLIES:'#fb923c', USES_MATERIAL:'#c084fc', HAS_CATEGORY:'#f472b6', SIMILAR_PRODUCT:'#f97316', SHARED_SUPPLIER:'#38bdf8'};
+
+let currentView = 'full-chain';
+let allNodes = [], allLinks = [], nodeMap = new Map(), adjacency = new Map();
+let selectedNode = null, simulation, linkElements, nodeElements;
+
+function buildGraph(view) {
+  allNodes = []; allLinks = []; nodeMap.clear(); adjacency.clear();
+  
+  function addNode(id, type, label, extra = {}) {
+    if (nodeMap.has(id)) return nodeMap.get(id);
+    const n = {id, type, label, ...extra};
+    allNodes.push(n); nodeMap.set(id, n);
+    return n;
+  }
+  
+  // Always add companies
+  comprehensiveData.companies.forEach(c => {
+    const sc = comprehensiveData.company_supply_chains[c.id];
+    addNode(`c-${c.id}`, 'Company', c.name, {
+      entityId: c.id,
+      fgCount: sc ? sc.fg_count : 0,
+      rmCount: sc ? sc.rm_count : 0,
+      supplierCount: sc ? sc.supplier_count : 0
+    });
+  });
+  
+  if (view === 'full-chain') {
+    // Complete supply chain: Company → FG → RM → Supplier
+    
+    // Finished Goods
+    comprehensiveData.finished_goods.forEach(fg => {
+      const meta = comprehensiveData.product_metadata[fg.id] || {};
+      addNode(`fg-${fg.id}`, 'FinishedGood', fg.sku.replace(/^FG-/, '').substring(0, 30), {
+        entityId: fg.id,
+        sku: fg.sku,
+        companyId: fg.company_id,
+        category: meta.category,
+        brand: meta.brand,
+        productName: meta.product_name
+      });
+      allLinks.push({source: `fg-${fg.id}`, target: `c-${fg.company_id}`, type: 'MANUFACTURED_BY'});
+    });
+    
+    // Raw Materials (all RMs used by finished goods)
+    const usedRMs = new Set();
+    Object.values(comprehensiveData.fg_to_rms).forEach(rmIds => {
+      rmIds.forEach(rmId => usedRMs.add(rmId));
+    });
+    
+    usedRMs.forEach(rmId => {
+      const rm = comprehensiveData.raw_materials.find(r => r.id === rmId);
+      if (rm) {
+        const suppliers = comprehensiveData.rm_to_suppliers[rmId] || [];
+        const isSingleSource = suppliers.length === 1;
+        const usageCount = comprehensiveData.critical_raw_materials.find(([id]) => id === rmId)?.[1] || 1;
+        addNode(`rm-${rmId}`, 'RawMaterial', rm.sku.replace(/^RM-/, '').substring(0, 28), {
+          entityId: rmId,
+          sku: rm.sku,
+          usageCount,
+          supplierCount: suppliers.length,
+          isSingleSource
+        });
+      }
+    });
+    
+    // FG → RM links
+    Object.entries(comprehensiveData.fg_to_rms).forEach(([fgId, rmIds]) => {
+      rmIds.forEach(rmId => {
+        if (nodeMap.has(`fg-${fgId}`) && nodeMap.has(`rm-${rmId}`)) {
+          allLinks.push({source: `fg-${fgId}`, target: `rm-${rmId}`, type: 'USES_MATERIAL'});
+        }
+      });
+    });
+    
+    // Suppliers
+    comprehensiveData.suppliers.forEach(s => {
+      const reach = comprehensiveData.supplier_reach[s.id];
+      addNode(`s-${s.id}`, 'Supplier', s.name, {
+        entityId: s.id,
+        rmCount: reach ? reach.rm_count : 0,
+        fgCount: reach ? reach.fg_count : 0,
+        companyCount: reach ? reach.company_count : 0
+      });
+    });
+    
+    // Supplier → RM links (only for hub materials)
+    Object.entries(comprehensiveData.rm_to_suppliers).forEach(([rmId, supplierIds]) => {
+      if (nodeMap.has(`rm-${rmId}`)) {
+        supplierIds.forEach(sid => {
+          if (nodeMap.has(`s-${sid}`)) {
+            allLinks.push({source: `s-${sid}`, target: `rm-${rmId}`, type: 'SUPPLIES'});
+          }
+        });
+      }
+    });
+  }
+  else if (view === 'materials') {
+    // Materials view: FG → RM with more detail
+    
+    comprehensiveData.finished_goods.forEach(fg => {
+      const meta = comprehensiveData.product_metadata[fg.id] || {};
+      addNode(`fg-${fg.id}`, 'FinishedGood', fg.sku.replace(/^FG-/, '').substring(0, 30), {
+        entityId: fg.id,
+        sku: fg.sku,
+        companyId: fg.company_id,
+        category: meta.category
+      });
+      allLinks.push({source: `fg-${fg.id}`, target: `c-${fg.company_id}`, type: 'MANUFACTURED_BY'});
+    });
+    
+    const hubRMs = comprehensiveData.critical_raw_materials.slice(0, 40);
+    hubRMs.forEach(([rmId, usageCount]) => {
+      const rm = comprehensiveData.raw_materials.find(r => r.id === rmId);
+      if (rm) {
+        const suppliers = comprehensiveData.rm_to_suppliers[rmId] || [];
+        addNode(`rm-${rmId}`, 'RawMaterial', rm.sku.replace(/^RM-/, '').substring(0, 28), {
+          entityId: rmId,
+          usageCount,
+          supplierCount: suppliers.length,
+          isSingleSource: suppliers.length === 1
+        });
+      }
+    });
+    
+    Object.entries(comprehensiveData.fg_to_rms).forEach(([fgId, rmIds]) => {
+      rmIds.forEach(rmId => {
+        if (nodeMap.has(`fg-${fgId}`) && nodeMap.has(`rm-${rmId}`)) {
+          allLinks.push({source: `fg-${fgId}`, target: `rm-${rmId}`, type: 'USES_MATERIAL'});
+        }
+      });
+    });
+  }
+  else if (view === 'risk') {
+    // Risk view: highlight single-source dependencies
+    
+    comprehensiveData.suppliers.forEach(s => {
+      const reach = comprehensiveData.supplier_reach[s.id];
+      addNode(`s-${s.id}`, 'Supplier', s.name, {
+        entityId: s.id,
+        companyCount: reach ? reach.company_count : 0
+      });
+    });
+    
+    comprehensiveData.high_risk_finished_goods.forEach(fg => {
+      const meta = comprehensiveData.product_metadata[fg.fg_id] || {};
+      const riskLevel = fg.risk_ratio >= 0.4 ? 'high' : fg.risk_ratio >= 0.2 ? 'medium' : 'low';
+      addNode(`fg-${fg.fg_id}`, 'FinishedGood', fg.sku.replace(/^FG-/, '').substring(0, 30), {
+        entityId: fg.fg_id,
+        sku: fg.sku,
+        companyId: comprehensiveData.finished_goods.find(f => f.id === fg.fg_id)?.company_id,
+        riskRatio: fg.risk_ratio,
+        riskLevel,
+        singleSourceCount: fg.single_source_rms,
+        totalRM: fg.total_rms,
+        category: meta.category
+      });
+      const cid = comprehensiveData.finished_goods.find(f => f.id === fg.fg_id)?.company_id;
+      if (cid) {
+        allLinks.push({source: `fg-${fg.fg_id}`, target: `c-${cid}`, type: 'MANUFACTURED_BY'});
+      }
+    });
+    
+    // Supplier → Company (heavy connections only)
+    const supplierCompanyLinks = {};
+    Object.entries(comprehensiveData.supplier_to_rms).forEach(([sid, rmIds]) => {
+      rmIds.forEach(rmId => {
+        const rm = comprehensiveData.raw_materials.find(r => r.id === parseInt(rmId));
+        if (rm) {
+          const key = `${sid}-${rm.company_id}`;
+          supplierCompanyLinks[key] = (supplierCompanyLinks[key] || 0) + 1;
+        }
+      });
+    });
+    
+    Object.entries(supplierCompanyLinks).forEach(([key, weight]) => {
+      if (weight >= 3) {
+        const [sid, cid] = key.split('-').map(Number);
+        if (nodeMap.has(`s-${sid}`) && nodeMap.has(`c-${cid}`)) {
+          allLinks.push({source: `s-${sid}`, target: `c-${cid}`, type: 'SUPPLIES', weight});
+        }
+      }
+    });
+  }
+  else if (view === 'products') {
+    // Products view: categories and similarities
+    
+    const categories = new Set();
+    comprehensiveData.finished_goods.forEach(fg => {
+      const meta = comprehensiveData.product_metadata[fg.id] || {};
+      if (meta.category && meta.category !== 'unknown' && meta.category !== 'scrape_failed' && meta.category !== 'blocked_page') {
+        categories.add(meta.category);
+      }
+      
+      addNode(`fg-${fg.id}`, 'FinishedGood', fg.sku.replace(/^FG-/, '').substring(0, 30), {
+        entityId: fg.id,
+        sku: fg.sku,
+        companyId: fg.company_id,
+        category: meta.category,
+        brand: meta.brand,
+        productName: meta.product_name
+      });
+      allLinks.push({source: `fg-${fg.id}`, target: `c-${fg.company_id}`, type: 'MANUFACTURED_BY'});
+      
+      if (meta.category && categories.has(meta.category)) {
+        const catId = `cat-${meta.category}`;
+        if (!nodeMap.has(catId)) {
+          addNode(catId, 'Category', meta.category.replace(/_/g, ' '), {categoryName: meta.category});
+        }
+        allLinks.push({source: `fg-${fg.id}`, target: catId, type: 'HAS_CATEGORY'});
+      }
+    });
+    
+    // Product similarity
+    (comprehensiveData.product_similarity || []).forEach(([a, b, count, jacc]) => {
+      if (jacc >= 0.7 && nodeMap.has(`fg-${a}`) && nodeMap.has(`fg-${b}`)) {
+        allLinks.push({source: `fg-${a}`, target: `fg-${b}`, type: 'SIMILAR_PRODUCT', weight: count, jaccard: jacc});
+      }
+    });
+  }
+  
+  // Build adjacency
+  allLinks.forEach((link, i) => {
+    const s = typeof link.source === 'object' ? link.source.id : link.source;
+    const t = typeof link.target === 'object' ? link.target.id : link.target;
+    if (!adjacency.has(s)) adjacency.set(s, []);
+    if (!adjacency.has(t)) adjacency.set(t, []);
+    adjacency.get(s).push({linkIdx: i, neighbor: t});
+    adjacency.get(t).push({linkIdx: i, neighbor: s});
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════════════════════
+const container = document.getElementById('graph-container');
+const svg = d3.select('#graph');
+const g = svg.append('g');
+const zoom = d3.zoom().scaleExtent([0.05, 10]).on('zoom', e => g.attr('transform', e.transform));
+svg.call(zoom);
+
+d3.select('#zoom-in').on('click', () => svg.transition().duration(300).call(zoom.scaleBy, 1.5));
+d3.select('#zoom-out').on('click', () => svg.transition().duration(300).call(zoom.scaleBy, 0.67));
+d3.select('#zoom-reset').on('click', () => svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity));
+
+function nodeRadius(d) {
+  if (d.type === 'Company') return Math.max(10, Math.min(24, 6 + (d.fgCount || 0) * 1.2));
+  if (d.type === 'Supplier') return Math.max(8, Math.min(18, 6 + (d.companyCount || 0) * 0.8));
+  if (d.type === 'RawMaterial') return Math.max(4, Math.min(12, 3 + (d.usageCount || 0) * 0.6));
+  if (d.type === 'Category') return 14;
+  if (d.type === 'FinishedGood' && d.riskLevel === 'high') return 7;
+  if (d.type === 'FinishedGood') return 6;
+  return 5;
+}
+
+function renderGraph() {
+  const w = container.clientWidth, h = container.clientHeight;
+  g.selectAll('*').remove();
+  selectedNode = null;
+  clearDetails();
+  
+  if (simulation) simulation.stop();
+  
+  simulation = d3.forceSimulation(allNodes)
+    .force('link', d3.forceLink(allLinks).id(d => d.id).distance(d => {
+      if (d.type === 'USES_MATERIAL') return 45;
+      if (d.type === 'SUPPLIES') return 70;
+      if (d.type === 'MANUFACTURED_BY') return 60;
+      if (d.type === 'HAS_CATEGORY') return 80;
+      if (d.type === 'SIMILAR_PRODUCT') return 30 + 40 * (1 - d.jaccard);
+      return 60;
+    }).strength(d => {
+      if (d.type === 'USES_MATERIAL') return 0.4;
+      if (d.type === 'SUPPLIES') return 0.15;
+      if (d.type === 'MANUFACTURED_BY') return 0.2;
+      if (d.type === 'HAS_CATEGORY') return 0.1;
+      if (d.type === 'SIMILAR_PRODUCT') return 0.6 * d.jaccard;
+      return 0.2;
+    }))
+    .force('charge', d3.forceManyBody().strength(d => {
+      if (d.type === 'Company') return -350;
+      if (d.type === 'Supplier') return -220;
+      if (d.type === 'RawMaterial') return -100;
+      if (d.type === 'Category') return -280;
+      if (d.type === 'FinishedGood') return -50;
+      return -40;
+    }))
+    .force('center', d3.forceCenter(w / 2, h / 2))
+    .force('collision', d3.forceCollide().radius(d => nodeRadius(d) + 3))
+    .force('x', d3.forceX(w / 2).strength(0.02))
+    .force('y', d3.forceY(h / 2).strength(0.02));
+  
+  const linkG = g.append('g');
+  linkElements = linkG.selectAll('line').data(allLinks).join('line')
+    .attr('class', 'link')
+    .attr('stroke-width', d => {
+      if (d.type === 'USES_MATERIAL') return 1.5;
+      if (d.type === 'SUPPLIES') return Math.min(Math.max(d.weight * 0.5, 0.8), 4);
+      if (d.type === 'SIMILAR_PRODUCT') return Math.max(1, d.jaccard * 4);
+      return 0.8;
+    })
+    .attr('stroke', d => linkColors[d.type] || '#1f2937')
+    .attr('stroke-opacity', d => {
+      if (d.type === 'MANUFACTURED_BY') return 0.12;
+      if (d.type === 'USES_MATERIAL') return 0.3;
+      if (d.type === 'SUPPLIES') return 0.25;
+      if (d.type === 'HAS_CATEGORY') return 0.2;
+      if (d.type === 'SIMILAR_PRODUCT') return 0.4;
+      return 0.15;
+    })
+    .attr('stroke-dasharray', d => d.type === 'USES_MATERIAL' ? '3,2' : d.type === 'HAS_CATEGORY' ? '2,2' : null);
+  
+  const nodeG = g.append('g');
+  nodeElements = nodeG.selectAll('g').data(allNodes).join('g')
+    .attr('class', 'node')
+    .call(d3.drag().on('start', dragStarted).on('drag', dragged).on('end', dragEnded));
+  
+  nodeElements.append('circle')
+    .attr('r', nodeRadius)
+    .attr('fill', d => {
+      if (d.type === 'FinishedGood' && d.riskLevel === 'high') return '#ef4444';
+      if (d.type === 'FinishedGood' && d.riskLevel === 'medium') return '#f59e0b';
+      if (d.type === 'RawMaterial' && d.isSingleSource) return '#dc2626';
+      return nodeColors[d.type];
+    })
+    .attr('stroke', '#0a0e1a')
+    .attr('stroke-width', 1.5);
+  
+  // Labels for Company, Supplier, Category, and RawMaterial nodes
+  nodeElements.filter(d => d.type === 'Company' || d.type === 'Supplier' || d.type === 'Category' || d.type === 'RawMaterial' || (currentView === 'risk' && d.riskLevel === 'high'))
+    .append('text')
+    .attr('class', 'node-label')
+    .attr('dy', d => nodeRadius(d) + 13)
+    .text(d => d.label.length > 20 ? d.label.substring(0, 18) + '…' : d.label);
+  
+  // Interactions
+  const tooltip = d3.select('#tooltip');
+  nodeElements
+    .on('mouseover', function(e, d) {
+      if (selectedNode) return;
+      let extra = '';
+      if (d.type === 'Company') extra = `<div class="tt-extra">${d.fgCount || 0} FGs, ${d.rmCount || 0} RMs, ${d.supplierCount || 0} suppliers</div>`;
+      if (d.type === 'FinishedGood' && d.riskRatio > 0) extra = `<div class="tt-extra">Risk: ${(d.riskRatio * 100).toFixed(0)}% single-source</div>`;
+      if (d.type === 'RawMaterial') extra = `<div class="tt-extra">Used in ${d.usageCount || 0} FGs, ${d.supplierCount || 0} suppliers${d.isSingleSource ? ' ⚠️' : ''}</div>`;
+      if (d.type === 'Supplier') extra = `<div class="tt-extra">${d.rmCount || 0} RMs → ${d.fgCount || 0} FGs → ${d.companyCount || 0} companies</div>`;
+      if (d.category) extra += `<div class="tt-extra">Category: ${d.category.replace(/_/g, ' ')}</div>`;
+      tooltip.style('opacity', 1).html(`<div class="tt-type" style="color:${nodeColors[d.type]}">${d.type}</div><div class="tt-name">${d.label}</div>${extra}`)
+        .style('left', (e.pageX + 14) + 'px').style('top', (e.pageY - 12) + 'px');
+    })
+    .on('mousemove', function(e) { tooltip.style('left', (e.pageX + 14) + 'px').style('top', (e.pageY - 12) + 'px') })
+    .on('mouseout', () => { if (!selectedNode) tooltip.style('opacity', 0) })
+    .on('click', function(e, d) { e.stopPropagation(); selectNode(d) });
+  
+  svg.on('click', () => clearSelection());
+  
+  simulation.on('tick', () => {
+    linkElements.attr('x1', d => d.source.x).attr('y1', d => d.source.y).attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    nodeElements.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
+  
+  // Stats
+  const linksByType = {};
+  allLinks.forEach(l => { linksByType[l.type] = (linksByType[l.type] || 0) + 1 });
+  const statsText = `${allNodes.length} nodes · ${allLinks.length} edges`;
+  document.getElementById('stats').textContent = statsText;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INTERACTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+function selectNode(d) {
+  selectedNode = d;
+  d3.select('#tooltip').style('opacity', 0);
+  const neighbors = new Set();
+  const connectedLinks = new Set();
+  (adjacency.get(d.id) || []).forEach(({linkIdx, neighbor}) => {
+    neighbors.add(neighbor);
+    connectedLinks.add(linkIdx);
+  });
+  
+  nodeElements.classed('selected', n => n.id === d.id).classed('neighbor', n => neighbors.has(n.id)).classed('dimmed', n => n.id !== d.id && !neighbors.has(n.id));
+  linkElements.classed('highlighted', (l, i) => connectedLinks.has(i)).classed('dimmed', (l, i) => !connectedLinks.has(i))
+    .attr('stroke', (l, i) => connectedLinks.has(i) ? linkColors[l.type] : '#1f2937')
+    .attr('stroke-opacity', (l, i) => connectedLinks.has(i) ? 0.85 : 0.02);
+  
+  updateDetails(d, neighbors, connectedLinks);
+}
+
+function clearSelection() {
+  selectedNode = null;
+  nodeElements.classed('selected', false).classed('neighbor', false).classed('dimmed', false).classed('search-match', false);
+  linkElements.classed('highlighted', false).classed('dimmed', false)
+    .attr('stroke', d => linkColors[d.type] || '#1f2937')
+    .attr('stroke-opacity', d => {
+      if (d.type === 'MANUFACTURED_BY') return 0.12;
+      if (d.type === 'USES_MATERIAL') return 0.3;
+      if (d.type === 'SUPPLIES') return 0.25;
+      if (d.type === 'HAS_CATEGORY') return 0.2;
+      if (d.type === 'SIMILAR_PRODUCT') return 0.4;
+      return 0.15;
+    });
+  clearDetails();
+}
+
+function clearDetails() {
+  document.getElementById('details').innerHTML = '<h3>Details</h3><p class="empty">Click a node to explore supply chain</p>';
+}
+
+function updateDetails(d, neighbors, connectedLinks) {
+  const panel = document.getElementById('details');
+  let html = `<h3>Selected Node</h3>`;
+  html += `<div class="detail-card"><div class="label">Type</div><div class="value" style="color:${nodeColors[d.type]}">${d.type}</div></div>`;
+  html += `<div class="detail-card"><div class="label">Name</div><div class="value">${d.label}</div></div>`;
+  
+  if (d.productName) html += `<div class="detail-card"><div class="label">Product</div><div class="value" style="font-size:11px">${d.productName}</div></div>`;
+  if (d.sku) html += `<div class="detail-card"><div class="label">SKU</div><div class="value" style="font-size:10px">${d.sku}</div></div>`;
+  if (d.brand) html += `<div class="detail-card"><div class="label">Brand</div><div class="value">${d.brand}</div></div>`;
+  if (d.category) html += `<div class="detail-card"><div class="label">Category</div><div class="value">${d.category.replace(/_/g, ' ')}</div></div>`;
+  
+  // Add pricing and dietary information
+  const meta = comprehensiveData.product_metadata[d.entityId];
+  if (meta && meta.price_usd) {
+    html += `<div class="detail-card" style="background:#1a3a1a;border-left:3px solid #6ee7b7"><div class="label">💰 Price</div><div class="value" style="color:#6ee7b7;font-weight:700">$${meta.price_usd.toFixed(2)}</div></div>`;
+  }
+  
+  if (meta && meta.dietary_flags) {
+    try {
+      const flags = JSON.parse(meta.dietary_flags);
+      if (flags.length > 0) {
+        html += `<div class="detail-card"><div class="label">Certifications</div><div class="value">`;
+        flags.forEach(f => html += `<span class="cert-badge">${f.replace(/_/g, ' ')}</span>`);
+        html += `</div></div>`;
+      }
+    } catch(e) {}
+  }
+  
+  if (d.fgCount) html += `<div class="detail-card"><div class="label">Products</div><div class="value">${d.fgCount} finished goods</div></div>`;
+  if (d.rmCount) html += `<div class="detail-card"><div class="label">Raw Materials</div><div class="value">${d.rmCount} materials</div></div>`;
+  if (d.supplierCount && d.type === 'Company') html += `<div class="detail-card"><div class="label">Suppliers</div><div class="value">${d.supplierCount} suppliers</div></div>`;
+  if (d.companyCount) html += `<div class="detail-card"><div class="label">Reach</div><div class="value">Serves ${d.companyCount} companies</div></div>`;
+  if (d.usageCount) html += `<div class="detail-card"><div class="label">Usage</div><div class="value">Used in ${d.usageCount} finished goods</div></div>`;
+  if (d.supplierCount && d.type === 'RawMaterial') {
+    const cls = d.isSingleSource ? 'risk-high' : 'risk-low';
+    const label = d.isSingleSource ? '⚠️ SINGLE-SOURCE' : `✓ ${d.supplierCount} suppliers`;
+    html += `<div class="detail-card"><div class="label">Supply Risk</div><div class="value"><span class="risk-badge ${cls}">${label}</span></div></div>`;
+  }
+  if (d.riskRatio > 0) {
+    const cls = d.riskLevel === 'high' ? 'risk-high' : d.riskLevel === 'medium' ? 'risk-med' : 'risk-low';
+    html += `<div class="detail-card"><div class="label">Supply Risk</div><div class="value"><span class="risk-badge ${cls}">${(d.riskRatio * 100).toFixed(0)}% single-source</span> (${d.singleSourceCount}/${d.totalRM} materials)</div></div>`;
+  }
+  
+  const adj = adjacency.get(d.id) || [];
+  if (adj.length > 0) {
+    const groups = {};
+    adj.forEach(({linkIdx, neighbor}) => {
+      const link = allLinks[linkIdx];
+      const n = nodeMap.get(neighbor);
+      if (!n) return;
+      const t = link.type;
+      if (!groups[t]) groups[t] = [];
+      groups[t].push({node: n, link});
+    });
+    
+    Object.entries(groups).forEach(([type, items]) => {
+      items.sort((a, b) => (b.link.weight || 0) - (a.link.weight || 0));
+      html += `<h3 style="margin-top:10px">${type.replace(/_/g, ' ')} <span style="color:#4b5563">(${items.length})</span></h3>`;
+      html += `<ul class="connection-list">`;
+      items.slice(0, 50).forEach(({node: n, link}) => {
+        let extra = '';
+        if (link.jaccard !== undefined) extra = `<span class="rel-type">${(link.jaccard * 100).toFixed(0)}% match</span>`;
+        else if (link.weight > 1) extra = `<span class="rel-type">${link.weight} materials</span>`;
+        const fillColor = n.type === 'FinishedGood' && n.riskLevel === 'high' ? '#ef4444' : n.type === 'RawMaterial' && n.isSingleSource ? '#dc2626' : nodeColors[n.type];
+        html += `<li data-node-id="${n.id}"><span style="width:8px;height:8px;border-radius:50%;background:${fillColor};display:inline-block;flex-shrink:0"></span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.label}</span>${extra}</li>`;
+      });
+      if (items.length > 50) html += `<li style="color:#6b7280;font-style:italic">... and ${items.length - 50} more</li>`;
+      html += `</ul>`;
+    });
+  }
+  panel.innerHTML = html;
+  panel.querySelectorAll('.connection-list li').forEach(li => {
+    li.addEventListener('click', () => { const n = nodeMap.get(li.dataset.nodeId); if (n) selectNode(n) });
+  });
+}
+
+// Search
+document.getElementById('search').addEventListener('input', e => {
+  const q = e.target.value.toLowerCase().trim();
+  if (!q) { clearSelection(); return }
+  nodeElements.classed('search-match', d => d.label.toLowerCase().includes(q) || (d.sku && d.sku.toLowerCase().includes(q)));
+  nodeElements.classed('dimmed', d => !d.label.toLowerCase().includes(q) && (!d.sku || !d.sku.toLowerCase().includes(q)));
+  linkElements.classed('dimmed', true).attr('stroke-opacity', 0.02);
+});
+
+// Drag
+function dragStarted(e, d) { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y }
+function dragged(e, d) { d.fx = e.x; d.fy = e.y }
+function dragEnded(e, d) { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VIEWS
+// ═══════════════════════════════════════════════════════════════════════════
+const viewLabels = {
+  'full-chain': 'Full Supply Chain View',
+  'materials': 'Bill of Materials View',
+  'risk': 'Risk & Concentration View',
+  'products': 'Product Intelligence View'
+};
+
+const viewInsights = {
+  'full-chain': [
+    {title: 'Complete Traceability', value: 'All 876 raw materials shown with full supply chain', sub: 'Company → FG → RM → Supplier'},
+    {title: 'Dominant Supplier', value: 'Prinova USA supplies 408 RMs to 60 companies', sub: 'Critical supply chain dependency'},
+    {title: 'Supply Risk', value: '119 raw materials have single-source risk', sub: 'No backup supplier available'},
+    {title: '💰 Pricing Data', value: '33 products with pricing ($2.28-$45.00)', sub: 'Avg price: $21.09 | Click products to see prices'}
+  ],
+  'materials': [
+    {title: 'Most Used RM', value: 'Magnesium stearate appears in 12 finished goods', sub: 'Top hub ingredient'},
+    {title: 'BOM Complexity', value: 'Avg 10.3 raw materials per finished good', sub: 'Range: 2 to 48 materials'},
+    {title: 'Critical Materials', value: 'Top 50 hub materials shown', sub: 'Click to see which products use them'},
+    {title: 'Single-Source', value: 'Red materials have only 1 supplier', sub: 'Supply disruption risk'}
+  ],
+  'risk': [
+    {title: 'Highest Risk', value: 'Orgain whey vanilla: 54% single-source', sub: '7 of 13 materials from one supplier'},
+    {title: '💰 Price-Risk Link', value: 'High-risk products avg $29.97 vs $18.97 low-risk', sub: 'Single-source materials may increase costs'},
+    {title: 'Critical RMs', value: '119 raw materials have no backup', sub: 'Single supplier dependency'},
+    {title: 'Brand Risk', value: 'Optimum Nutrition: 42-44% single-source', sub: 'Multiple products affected'}
+  ],
+  'products': [
+    {title: 'Identical Formulas', value: 'Equate products share 44 identical RMs', sub: 'Same formula, different packaging'},
+    {title: '💰 Whey Protein', value: 'Avg $28.72 ($21.98-$29.97)', sub: 'Premium category pricing'},
+    {title: 'Category Leaders', value: 'Nature Made: 6 product categories', sub: 'Highest diversity'},
+    {title: 'Certifications', value: '100% of whey proteins are gluten-free', sub: 'Category-wide standard'}
+  ]
+};
+
+function updateLegend(view) {
+  const legend = document.getElementById('legend');
+  legend.innerHTML = '';
+  const types = view === 'products' ? ['Company', 'FinishedGood', 'Category'] :
+                view === 'materials' ? ['Company', 'FinishedGood', 'RawMaterial'] :
+                view === 'risk' ? ['Company', 'FinishedGood', 'Supplier'] :
+                ['Company', 'FinishedGood', 'RawMaterial', 'Supplier'];
+  
+  types.forEach(t => {
+    const count = allNodes.filter(n => n.type === t).length;
+    const div = document.createElement('div');
+    div.className = 'legend-item';
+    const displayName = t === 'FinishedGood' ? 'Finished Good' : t === 'RawMaterial' ? 'Raw Material' : t;
+    const extra = t === 'FinishedGood' && view === 'risk' ? ' (red = high risk)' :
+                  t === 'RawMaterial' ? ' (red = single-source)' : '';
+    div.innerHTML = `<span class="dot" style="background:${nodeColors[t]}"></span><span>${displayName}${extra}</span><span class="count">${count}</span>`;
+    legend.appendChild(div);
+  });
+  
+  const edgeTypes = view === 'full-chain' ? [['MANUFACTURED_BY', 'FG → Company'], ['USES_MATERIAL', 'FG → RM'], ['SUPPLIES', 'Supplier → RM']] :
+                     view === 'materials' ? [['MANUFACTURED_BY', 'FG → Company'], ['USES_MATERIAL', 'FG → RM']] :
+                     view === 'products' ? [['MANUFACTURED_BY', 'FG → Company'], ['HAS_CATEGORY', 'FG → Category'], ['SIMILAR_PRODUCT', 'Similar Formula']] :
+                     [['MANUFACTURED_BY', 'FG → Company'], ['SUPPLIES', 'Supplier → Company']];
+  
+  edgeTypes.forEach(([type, label]) => {
+    const div = document.createElement('div');
+    div.className = 'legend-item';
+    div.innerHTML = `<span class="dot" style="background:${linkColors[type]};border-radius:2px;width:14px;height:3px"></span><span style="font-size:11px">${label}</span>`;
+    legend.appendChild(div);
+  });
+}
+
+function updateInsights(view) {
+  const panel = document.getElementById('insights');
+  let html = '<h3 style="font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:#6b7280;margin-bottom:8px;font-weight:600">Key Insights</h3>';
+  (viewInsights[view] || []).forEach(ins => {
+    html += `<div class="insight-card"><div class="insight-title">${ins.title}</div><div class="insight-value">${ins.value}</div><div class="insight-sub">${ins.sub}</div></div>`;
+  });
+  panel.innerHTML = html;
+}
+
+function switchView(view) {
+  currentView = view;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
+  document.getElementById('view-label').textContent = viewLabels[view];
+  document.getElementById('search').value = '';
+  activeFilters.categories.clear();
+  activeFilters.certifications.clear();
+  activeFilters.companies.clear();
+  activeFilters.suppliers.clear();
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  
+  // Show/hide company and supplier filters based on view
+  const companyFilterGroup = document.getElementById('company-filter-group');
+  const supplierFilterGroup = document.getElementById('supplier-filter-group');
+  if (view === 'full-chain') {
+    companyFilterGroup.style.display = 'block';
+    supplierFilterGroup.style.display = 'block';
+  } else {
+    companyFilterGroup.style.display = 'none';
+    supplierFilterGroup.style.display = 'none';
+  }
+  
+  // Reset filter selections
+  document.getElementById('company-filter').selectedIndex = -1;
+  document.getElementById('supplier-filter').selectedIndex = -1;
+  
+  buildGraph(view);
+  updateLegend(view);
+  updateInsights(view);
+  renderGraph();
+}
+
+// Tab clicks
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => switchView(tab.dataset.view));
+});
+
+// Resize
+window.addEventListener('resize', () => {
+  if (simulation) {
+    simulation.force('center', d3.forceCenter(container.clientWidth / 2, container.clientHeight / 2));
+    simulation.alpha(0.1).restart();
+  }
+});
+
+// Init
+loadData();
+</script>
+</body>
+</html>

@@ -9,9 +9,10 @@ DEFAULT_INPUT = Path(__file__).resolve().parent / "scraper" / "output" / "standa
 
 
 def create_standardized_table(conn: sqlite3.Connection):
+    conn.execute("DROP TABLE IF EXISTS Product_Standardization")
     conn.execute(
         """
-        CREATE TABLE IF NOT EXISTS Product_Standardization (
+        CREATE TABLE Product_Standardization (
             ProductId INTEGER PRIMARY KEY,
             SKU TEXT NOT NULL UNIQUE,
             Source TEXT,
@@ -22,11 +23,12 @@ def create_standardized_table(conn: sqlite3.Connection):
             ProductName TEXT,
             ProductCategory TEXT,
             Brand TEXT,
-            Form TEXT,
+            DosageForm TEXT,
             TargetDemographic TEXT,
             Flavor TEXT,
-            Ingredients TEXT,
+            IngredientSignals TEXT,
             DietaryFlags TEXT,
+            Certifications TEXT,
             AllergenContains TEXT,
             AllergenFreeFrom TEXT,
             Potency TEXT,
@@ -62,11 +64,12 @@ def save_standardized_record(conn: sqlite3.Connection, product_id: int, record: 
             ProductName,
             ProductCategory,
             Brand,
-            Form,
+            DosageForm,
             TargetDemographic,
             Flavor,
-            Ingredients,
+            IngredientSignals,
             DietaryFlags,
+            Certifications,
             AllergenContains,
             AllergenFreeFrom,
             Potency,
@@ -76,7 +79,7 @@ def save_standardized_record(conn: sqlite3.Connection, product_id: int, record: 
             RawDietaryClaims,
             RawIngredientsRaw,
             ErrorMessage
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             product_id,
@@ -89,11 +92,12 @@ def save_standardized_record(conn: sqlite3.Connection, product_id: int, record: 
             record.get("product_name"),
             record.get("product_category"),
             record.get("brand"),
-            record.get("form"),
+            record.get("dosage_form"),
             record.get("target_demographic"),
             record.get("flavor"),
-            json.dumps(record.get("ingredients") or []),
+            json.dumps(record.get("ingredient_signals") or []),
             json.dumps(record.get("dietary_flags") or []),
+            json.dumps(record.get("certifications") or []),
             json.dumps(record.get("allergen_contains") or []),
             json.dumps(record.get("allergen_free_from") or []),
             json.dumps(record.get("potency") or []),

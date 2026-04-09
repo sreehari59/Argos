@@ -18,7 +18,10 @@ This folder contains all the essential files needed to run the Agnes AI Supply C
 - **Dependencies**: `package.json`
 
 ### Database
-- **db_new.sqlite**: Main database with 61 companies, 149 products, 876 raw materials, 40 suppliers
+- **db_new.sqlite**: Pre-populated database (2.5 MB) with all 12 tables including intelligence data:
+  - Core: Company, Product, BOM, BOM_Component, Supplier, Supplier_Product
+  - Intelligence: Ingredient_Family, Ingredient_Family_Member, Ingredient_Role, Clean_Enrichment, Substitution_Candidate
+  - 61 companies, 149 products, 876 raw materials, 40 suppliers, 7,362 recommendations
 
 ### Configuration
 - **.env**: Environment variables (includes OpenRouter API key)

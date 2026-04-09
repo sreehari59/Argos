@@ -8,7 +8,22 @@ import json
 from typing import Dict, Any, List
 
 from db import query, execute
-from llm_compliance import call_llm
+from llm_compliance import call_llm, check_compliance
+
+
+def _safe_get_enrichment(product_id: Any) -> Dict[str, Any]:
+    """Fetch enrichment row for a product id; return empty dict if unavailable."""
+    if not product_id:
+        return {}
+
+    try:
+        rows = query(
+            "SELECT * FROM Clean_Enrichment WHERE product_id = ?",
+            (product_id,)
+        )
+        return rows[0] if rows else {}
+    except Exception:
+        return {}
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +198,7 @@ def calculate_final_score(
     return compliance_score * weighted_score
 
 
-def update_all_scores(use_llm: bool = False, limit: int = None):
+def update_all_scores(use_llm: bool = True, limit: int = None):
     """
     Update quality and final scores for all candidates.
     
@@ -207,35 +222,64 @@ def update_all_scores(use_llm: bool = False, limit: int = None):
     print(f"Processing {len(candidates)} candidates...")
     
     for i, cand in enumerate(candidates):
-        # Get enrichment data for current and substitute
-        current_enrich = None
-        substitute_enrich = None
-        
-        # For simplicity, use heuristic scoring (LLM quality scoring can be added later)
-        quality_result = score_quality_heuristic(
-            cand['current_canonical_name'],
-            cand['substitute_canonical_name'],
-            cand['family_type']
-        )
-        
+        # Pull enrichment rows used by both quality and compliance checks.
+        current_enrich = _safe_get_enrichment(cand.get('current_ingredient_id'))
+        substitute_enrich = _safe_get_enrichment(cand.get('substitute_ingredient_id'))
+        product_enrich = _safe_get_enrichment(cand.get('product_id'))
+
+        if use_llm:
+            quality_result = score_quality_llm(
+                cand['current_canonical_name'],
+                cand['substitute_canonical_name'],
+                cand['functional_role'],
+                current_enrich,
+                substitute_enrich
+            )
+
+            compliance_result = check_compliance(
+                cand['current_canonical_name'],
+                cand['substitute_canonical_name'],
+                product_enrich,
+                cand['functional_role'],
+                use_llm=True
+            )
+            compliance_score = (
+                compliance_result['confidence']
+                if compliance_result['compliant']
+                else 0.0
+            )
+            compliance_reasoning = compliance_result['reasoning']
+        else:
+            quality_result = score_quality_heuristic(
+                cand['current_canonical_name'],
+                cand['substitute_canonical_name'],
+                cand['family_type']
+            )
+            compliance_score = cand['compliance_score'] if cand['compliance_score'] is not None else 0.9
+            compliance_reasoning = cand.get('compliance_reasoning')
+
         # Calculate final score
         final_score = calculate_final_score(
-            cand['compliance_score'] or 0.9,
+            compliance_score,
             quality_result['quality_score'],
             cand['priority_rank'] or 0.5,
             cand['family_type']
         )
-        
+
         # Update database
         execute("""
             UPDATE Substitution_Candidate
             SET quality_score = ?,
                 quality_reasoning = ?,
+                compliance_score = ?,
+                compliance_reasoning = ?,
                 final_score = ?
             WHERE id = ?
         """, (
             quality_result['quality_score'],
             quality_result['reasoning'],
+            compliance_score,
+            compliance_reasoning,
             final_score,
             cand['id']
         ))
@@ -283,4 +327,4 @@ def update_all_scores(use_llm: bool = False, limit: int = None):
 
 
 if __name__ == "__main__":
-    update_all_scores(use_llm=False)
+    update_all_scores(use_llm=True)

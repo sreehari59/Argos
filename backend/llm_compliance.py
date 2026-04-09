@@ -1,7 +1,7 @@
 """
 LLM-powered Compliance Gate:
 - Check if a substitute meets dietary claims and allergen requirements
-- Use OpenRouter API with google/gemma-4-31b-it:free model
+- Use OpenAI Chat Completions API
 - Cache results to avoid redundant calls
 """
 import os
@@ -17,24 +17,24 @@ from db import query, execute
 
 # Load environment variables
 load_dotenv(Path(__file__).parent.parent / ".env")
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-if not OPENROUTER_API_KEY:
-    raise ValueError("OPENROUTER_API_KEY not found in .env")
+if not OPENAI_API_KEY:
+    raise ValueError("OPENAI_API_KEY not found in .env")
 
 
 # ---------------------------------------------------------------------------
-# OpenRouter API client
+# OpenAI API client
 # ---------------------------------------------------------------------------
 
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL = "nvidia/nemotron-3-super-120b-a12b:free"  # Free model
+OPENAI_URL = "https://api.openai.com/v1/chat/completions"
+MODEL = "gpt-4o-mini"
 
 
 def call_llm(prompt: str, max_tokens: int = 500) -> str:
-    """Call OpenRouter LLM with the given prompt."""
+    """Call OpenAI LLM with the given prompt."""
     headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
         "Content-Type": "application/json",
     }
     
@@ -49,7 +49,7 @@ def call_llm(prompt: str, max_tokens: int = 500) -> str:
     
     try:
         with httpx.Client(timeout=30.0) as client:
-            response = client.post(OPENROUTER_URL, headers=headers, json=payload)
+            response = client.post(OPENAI_URL, headers=headers, json=payload)
             response.raise_for_status()
             data = response.json()
             

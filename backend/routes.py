@@ -316,6 +316,19 @@ def get_ingredient_role(family_name: str, product_id: Optional[int] = None):
 # Products
 # ---------------------------------------------------------------------------
 
+@router.get("/products")
+def list_products():
+    """All finished-good products with company name."""
+    rows = query("""
+        SELECT p.Id, p.SKU, c.Name as company_name
+        FROM Product p
+        JOIN Company c ON p.CompanyId = c.Id
+        WHERE p.Type = 'finished-good'
+        ORDER BY c.Name, p.SKU
+    """)
+    return rows
+
+
 @router.get("/products/{product_id}/formulation")
 def get_product_formulation(product_id: int):
     """Full formulation breakdown: each ingredient with role and priority."""
@@ -576,11 +589,14 @@ def get_product_recommendations(product_id: int, min_score: float = 0.6):
 
 
 @router.get("/recommendations/top")
-def get_top_recommendations(limit: int = 50):
-    """Get top recommendations across all products."""
-    from recommendations import get_top_recommendations
-    
-    return get_top_recommendations(limit)
+def get_top_recommendations(limit: int = 50, companies: str = None, products: str = None):
+    """Get top recommendations across all products, with optional company/product filters."""
+    from recommendations import get_top_recommendations as _get_top
+
+    company_names = [c.strip() for c in companies.split(",")] if companies else None
+    product_skus = [p.strip() for p in products.split(",")] if products else None
+
+    return _get_top(limit, company_names=company_names, product_skus=product_skus)
 
 
 @router.get("/recommendations/consolidation")

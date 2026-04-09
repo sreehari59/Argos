@@ -265,18 +265,34 @@ def get_recommendations_for_product(product_id: int) -> List[Dict[str, Any]]:
     return recs
 
 
-def get_top_recommendations(limit: int = 50) -> List[Dict[str, Any]]:
-    """Get top recommendations across all products."""
+def get_top_recommendations(limit: int = 50, company_names: list = None, product_skus: list = None) -> List[Dict[str, Any]]:
+    """Get top recommendations across all products, optionally filtered."""
     try:
-        recs = query("""
+        conditions = ["sc.final_score IS NOT NULL"]
+        params = []
+
+        if company_names:
+            placeholders = ",".join("?" for _ in company_names)
+            conditions.append(f"c.Name IN ({placeholders})")
+            params.extend(company_names)
+
+        if product_skus:
+            placeholders = ",".join("?" for _ in product_skus)
+            conditions.append(f"p.SKU IN ({placeholders})")
+            params.extend(product_skus)
+
+        where_clause = " AND ".join(conditions)
+        params.append(limit)
+
+        recs = query(f"""
             SELECT sc.*, p.SKU as product_sku, c.Name as company_name
             FROM Substitution_Candidate sc
             JOIN Product p ON sc.product_id = p.Id
             JOIN Company c ON p.CompanyId = c.Id
-            WHERE sc.final_score IS NOT NULL
+            WHERE {where_clause}
             ORDER BY sc.final_score DESC
             LIMIT ?
-        """, (limit,))
+        """, tuple(params))
         
         for r in recs:
             if r['available_suppliers']:

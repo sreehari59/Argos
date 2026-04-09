@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 const API_BASE = 'http://localhost:8000/api'
 
@@ -328,22 +328,115 @@ function WeightSliders({ weights, onChange }) {
   )
 }
 
+function MultiSelectDropdown({ label, options, selected, onChange, isOpen, setIsOpen }) {
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const handleClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setIsOpen(false) }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [setIsOpen])
+
+  const toggle = (val) => {
+    onChange(selected.includes(val) ? selected.filter(v => v !== val) : [...selected, val])
+  }
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          padding: '0.375rem 0.75rem', borderRadius: '0.5rem', border: '1px solid',
+          borderColor: selected.length > 0 ? 'var(--primary)' : 'var(--border)',
+          background: selected.length > 0 ? 'rgba(99,102,241,0.12)' : 'transparent',
+          color: selected.length > 0 ? 'var(--primary-light)' : 'var(--text-dim)',
+          fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s ease',
+          display: 'flex', alignItems: 'center', gap: '0.375rem',
+        }}
+      >
+        {label}
+        {selected.length > 0 && (
+          <span style={{
+            background: 'var(--primary)', color: '#fff', fontSize: '0.625rem', fontWeight: 700,
+            borderRadius: '0.75rem', padding: '0.05rem 0.4rem', lineHeight: 1.4,
+          }}>{selected.length}</span>
+        )}
+        <span style={{ fontSize: '0.5rem', marginLeft: '0.125rem' }}>{isOpen ? '▲' : '▼'}</span>
+      </button>
+      {isOpen && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, marginTop: '0.375rem', zIndex: 50,
+          background: '#1e1e2e', border: '1px solid var(--border)',
+          borderRadius: '0.5rem', padding: '0.375rem 0', minWidth: 220, maxHeight: 260,
+          overflowY: 'auto', boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
+        }}>
+          {selected.length > 0 && (
+            <button
+              onClick={() => onChange([])}
+              style={{
+                width: '100%', padding: '0.375rem 0.75rem', background: 'transparent',
+                border: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text-dim)',
+                fontSize: '0.6875rem', fontWeight: 600, cursor: 'pointer', textAlign: 'left',
+              }}
+            >Clear all</button>
+          )}
+          {options.map(opt => (
+            <label
+              key={opt}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.5rem',
+                padding: '0.375rem 0.75rem', cursor: 'pointer', fontSize: '0.75rem',
+                color: selected.includes(opt) ? 'var(--text)' : 'var(--text-muted)',
+                fontWeight: selected.includes(opt) ? 600 : 400,
+                transition: 'background 0.15s ease',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <span style={{
+                width: 14, height: 14, borderRadius: 3, border: '1px solid',
+                borderColor: selected.includes(opt) ? 'var(--primary)' : 'var(--border)',
+                background: selected.includes(opt) ? 'var(--primary)' : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0, transition: 'all 0.15s ease',
+              }}>
+                {selected.includes(opt) && <span style={{ color: '#fff', fontSize: '0.6rem', lineHeight: 1 }}>✓</span>}
+              </span>
+              <input type="checkbox" checked={selected.includes(opt)} onChange={() => toggle(opt)} style={{ display: 'none' }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function RecommendationsView() {
   const [topRecs, setTopRecs] = useState([])
   const [consolidation, setConsolidation] = useState([])
   const [urlMap, setUrlMap] = useState({})
   const [typeFilter, setTypeFilter] = useState('all')
   const [roleFilter, setRoleFilter] = useState('all')
+  const [selectedCompanies, setSelectedCompanies] = useState([])
+  const [selectedProducts, setSelectedProducts] = useState([])
+  const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false)
+  const [productDropdownOpen, setProductDropdownOpen] = useState(false)
   const [visibleCount, setVisibleCount] = useState(15)
   const [sortBy, setSortBy] = useState('score')
   const [weights, setWeights] = useState({ quality: 40, compliance: 30, priority: 30 })
 
   useEffect(() => {
-    fetch(`${API_BASE}/recommendations/top?limit=50`)
+    const params = new URLSearchParams({ limit: '200' })
+    if (selectedCompanies.length > 0) params.set('companies', selectedCompanies.join(','))
+    if (selectedProducts.length > 0) params.set('products', selectedProducts.join(','))
+    fetch(`${API_BASE}/recommendations/top?${params}`)
       .then(res => res.json())
       .then(data => setTopRecs(data))
       .catch(err => console.error('Failed to load recommendations:', err))
+  }, [selectedCompanies, selectedProducts])
 
+  useEffect(() => {
     fetch(`${API_BASE}/recommendations/consolidation`)
       .then(res => res.json())
       .then(data => setConsolidation(data))
@@ -356,6 +449,21 @@ export default function RecommendationsView() {
         console.error('Failed to load enrichment URL map:', err)
         setUrlMap({})
       })
+  }, [])
+
+  const [allCompanies, setAllCompanies] = useState([])
+  const [allProducts, setAllProducts] = useState([])
+
+  useEffect(() => {
+    fetch(`${API_BASE}/companies`)
+      .then(res => res.json())
+      .then(data => setAllCompanies(data.map(c => c.Name).sort()))
+      .catch(err => console.error('Failed to load companies:', err))
+
+    fetch(`${API_BASE}/products`)
+      .then(res => res.json())
+      .then(data => setAllProducts(data.map(p => p.SKU).sort()))
+      .catch(err => console.error('Failed to load products:', err))
   }, [])
 
   const roles = Array.from(new Set(topRecs.map(r => r.functional_role))).sort()
@@ -387,7 +495,7 @@ export default function RecommendationsView() {
 
   useEffect(() => {
     setVisibleCount(15)
-  }, [typeFilter, roleFilter])
+  }, [typeFilter, roleFilter, selectedCompanies, selectedProducts])
 
   return (
     <div>
@@ -494,6 +602,26 @@ export default function RecommendationsView() {
                 </button>
               )
             })}
+          </div>
+
+          {/* Company & Product filters */}
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
+            <MultiSelectDropdown
+              label="Companies"
+              options={allCompanies}
+              selected={selectedCompanies}
+              onChange={setSelectedCompanies}
+              isOpen={companyDropdownOpen}
+              setIsOpen={setCompanyDropdownOpen}
+            />
+            <MultiSelectDropdown
+              label="Products"
+              options={allProducts}
+              selected={selectedProducts}
+              onChange={setSelectedProducts}
+              isOpen={productDropdownOpen}
+              setIsOpen={setProductDropdownOpen}
+            />
           </div>
         </div>
 

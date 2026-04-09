@@ -2067,3 +2067,25 @@ h3 {
     grid-template-columns: 1fr;
   }
 }
+
+/* Weight slider thumb */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--primary);
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(99, 102, 241, 0.4);
+  margin-top: -5px;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--primary);
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(99, 102, 241, 0.4);
+}

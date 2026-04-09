@@ -57,7 +57,8 @@ function RecCard({ rec, rank }) {
   const isFormVariant = rec.family_type === 'form_variant'
   const typeLabel = isFormVariant ? 'Form Variant' : 'Functional Sub'
   const typeColor = isFormVariant ? '#6366f1' : '#ec4899'
-  const scoreColor = rec.final_score >= 0.8 ? '#10b981' : rec.final_score >= 0.6 ? '#f59e0b' : '#ef4444'
+  const displayScore = rec.weighted_score ?? rec.final_score
+  const scoreColor = displayScore >= 0.8 ? '#10b981' : displayScore >= 0.6 ? '#f59e0b' : '#ef4444'
 
   return (
     <div
@@ -83,7 +84,7 @@ function RecCard({ rec, rank }) {
           {/* Rank + Score ring */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
             <span style={{ fontSize: '0.5625rem', fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>#{rank}</span>
-            <ScoreRing score={rec.final_score} size={52} />
+            <ScoreRing score={displayScore} size={52} />
           </div>
 
           {/* Main content */}
@@ -160,7 +161,7 @@ function RecCard({ rec, rank }) {
               gap: '1rem', marginBottom: '1.25rem',
               padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '0.75rem',
             }}>
-              <MiniBar value={rec.final_score} label="Final Score" color={scoreColor} />
+              <MiniBar value={displayScore} label="Weighted Score" color={scoreColor} />
               {rec.quality_score != null && (
                 <MiniBar value={rec.quality_score} label="Quality" color={rec.quality_score >= 0.8 ? '#10b981' : rec.quality_score >= 0.6 ? '#f59e0b' : '#ef4444'} />
               )}
@@ -212,6 +213,79 @@ function RecCard({ rec, rank }) {
   )
 }
 
+function WeightSliders({ weights, onChange }) {
+  const handleSliderChange = (key, rawValue) => {
+    const value = Number(rawValue)
+    const others = Object.keys(weights).filter(k => k !== key)
+    const remaining = 100 - value
+    const othersSum = others.reduce((s, k) => s + weights[k], 0)
+    const newWeights = { ...weights, [key]: value }
+    if (othersSum > 0) {
+      others.forEach(k => { newWeights[k] = Math.round((weights[k] / othersSum) * remaining) })
+    } else {
+      others.forEach((k, i) => { newWeights[k] = Math.round(remaining / others.length) })
+    }
+    // Fix rounding so total = 100
+    const diff = 100 - Object.values(newWeights).reduce((a, b) => a + b, 0)
+    if (diff !== 0) {
+      const adjustKey = others.find(k => newWeights[k] > 0) || others[0]
+      newWeights[adjustKey] += diff
+    }
+    onChange(newWeights)
+  }
+
+  const sliderMeta = {
+    quality: { label: 'Quality', color: '#10b981', desc: 'Ingredient quality & similarity' },
+    compliance: { label: 'Compliance', color: '#6366f1', desc: 'Dietary & allergen compatibility' },
+    priority: { label: 'Priority', color: '#f59e0b', desc: 'Formulation ingredient position' },
+  }
+
+  return (
+    <div style={{
+      padding: '1.25rem', background: 'rgba(255,255,255,0.02)',
+      borderRadius: '0.75rem', border: '1px solid var(--border)',
+      marginBottom: '1.5rem',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+        <h3 style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 700, margin: 0 }}>
+          ⚖️ Scoring Weights
+        </h3>
+        <button
+          onClick={() => onChange({ quality: 40, compliance: 30, priority: 30 })}
+          style={{
+            background: 'transparent', border: '1px solid var(--border)', borderRadius: '0.375rem',
+            color: 'var(--text-dim)', fontSize: '0.625rem', fontWeight: 600, padding: '0.25rem 0.625rem',
+            cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.04em',
+            transition: 'all 0.2s ease',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-muted)' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-dim)' }}
+        >Reset</button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
+        {Object.entries(sliderMeta).map(([key, meta]) => (
+          <div key={key}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.375rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: meta.color }}>{meta.label}</span>
+              <span style={{ fontSize: '0.875rem', fontWeight: 800, color: meta.color }}>{weights[key]}%</span>
+            </div>
+            <input
+              type="range" min="0" max="100" value={weights[key]}
+              onChange={e => handleSliderChange(key, e.target.value)}
+              style={{
+                width: '100%', height: 6, borderRadius: 3,
+                appearance: 'none', background: `linear-gradient(90deg, ${meta.color} ${weights[key]}%, rgba(255,255,255,0.06) ${weights[key]}%)`,
+                cursor: 'pointer', outline: 'none',
+              }}
+            />
+            <div style={{ fontSize: '0.625rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>{meta.desc}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function RecommendationsView() {
   const [topRecs, setTopRecs] = useState([])
   const [consolidation, setConsolidation] = useState([])
@@ -219,6 +293,7 @@ export default function RecommendationsView() {
   const [roleFilter, setRoleFilter] = useState('all')
   const [visibleCount, setVisibleCount] = useState(15)
   const [sortBy, setSortBy] = useState('score')
+  const [weights, setWeights] = useState({ quality: 40, compliance: 30, priority: 30 })
 
   useEffect(() => {
     fetch(`${API_BASE}/recommendations/top?limit=50`)
@@ -234,18 +309,28 @@ export default function RecommendationsView() {
 
   const roles = Array.from(new Set(topRecs.map(r => r.functional_role))).sort()
 
+  const recalcScore = (rec) => {
+    const q = rec.quality_score ?? 0.8
+    const c = rec.compliance_score ?? 0.9
+    const p = rec.priority_rank ?? 0.5
+    const total = weights.quality + weights.compliance + weights.priority
+    if (total === 0) return 0
+    return (weights.quality * q + weights.compliance * c + weights.priority * p) / total
+  }
+
   const filteredRecs = topRecs
+    .map(r => ({ ...r, weighted_score: recalcScore(r) }))
     .filter(r => typeFilter === 'all' || r.family_type === typeFilter)
     .filter(r => roleFilter === 'all' || r.functional_role === roleFilter)
     .sort((a, b) => {
-      if (sortBy === 'score') return b.final_score - a.final_score
+      if (sortBy === 'score') return b.weighted_score - a.weighted_score
       if (sortBy === 'company') return a.company_name.localeCompare(b.company_name)
       if (sortBy === 'role') return a.functional_role.localeCompare(b.functional_role)
       return 0
     })
 
   const visible = filteredRecs.slice(0, visibleCount)
-  const avgScore = filteredRecs.length > 0 ? filteredRecs.reduce((a, b) => a + b.final_score, 0) / filteredRecs.length : 0
+  const avgScore = filteredRecs.length > 0 ? filteredRecs.reduce((a, b) => a + b.weighted_score, 0) / filteredRecs.length : 0
   const formCount = filteredRecs.filter(r => r.family_type === 'form_variant').length
   const funcCount = filteredRecs.filter(r => r.family_type === 'functional_substitute').length
 
@@ -288,6 +373,9 @@ export default function RecommendationsView() {
       )}
 
       <div className="card">
+        {/* Weight Sliders */}
+        <WeightSliders weights={weights} onChange={setWeights} />
+
         {/* Header with controls */}
         <div style={{ marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
@@ -405,20 +493,20 @@ export default function RecommendationsView() {
               </h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
                 <div>
-                  <strong style={{ color: 'var(--text-secondary)' }}>Quality (40%)</strong>
+                  <strong style={{ color: '#10b981' }}>Quality ({weights.quality}%)</strong>
                   <p>Evaluates ingredient quality — form variants score higher as they're chemically similar.</p>
                 </div>
                 <div>
-                  <strong style={{ color: 'var(--text-secondary)' }}>Compliance (30%)</strong>
+                  <strong style={{ color: '#6366f1' }}>Compliance ({weights.compliance}%)</strong>
                   <p>LLM-verified dietary and allergen compatibility. Ensures substitutes meet requirements.</p>
                 </div>
                 <div>
-                  <strong style={{ color: 'var(--text-secondary)' }}>Priority (30%)</strong>
+                  <strong style={{ color: '#f59e0b' }}>Priority ({weights.priority}%)</strong>
                   <p>Based on ingredient position in formulation — higher weight for primary ingredients.</p>
                 </div>
               </div>
               <p style={{ fontSize: '0.6875rem', color: 'var(--text-dim)', marginTop: '0.75rem', fontStyle: 'italic' }}>
-                Final = Compliance × (0.4 × Quality + 0.4 × Priority + 0.2 × Family Bonus) — across 149 products, 876 raw materials.
+                Weighted Score = ({weights.quality}% × Quality) + ({weights.compliance}% × Compliance) + ({weights.priority}% × Priority) — adjust sliders above to tune.
               </p>
             </div>
           </>

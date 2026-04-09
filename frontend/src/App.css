@@ -2000,9 +2000,30 @@ h3 {
 }
 
 /* Responsive */
+@media (max-width: 1024px) {
+  .explorer-layout {
+    grid-template-columns: 1fr;
+  }
+  
+  .health-score-widget {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .health-score-details {
+    text-align: center;
+  }
+
+  .main-content {
+    padding: 2rem;
+  }
+}
+
 @media (max-width: 768px) {
   .navbar {
     padding: 1rem 1.5rem;
+    flex-direction: column;
+    gap: 1rem;
   }
   
   .nav-brand h1 {
@@ -2011,15 +2032,21 @@ h3 {
   
   .nav-links {
     gap: 0.25rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
   }
   
-  .nav-links a {
+  .nav-links a, .nav-links button {
     padding: 0.5rem 0.875rem;
     font-size: 0.8125rem;
+    flex: 1;
+    text-align: center;
+    min-width: 120px;
   }
   
   .main-content {
-    padding: 2rem 1.5rem;
+    padding: 1.5rem 1rem;
   }
   
   .stats-grid {
@@ -2065,6 +2092,13 @@ h3 {
 
   .consolidation-grid {
     grid-template-columns: 1fr;
+  }
+  
+  .company-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.5rem;
   }
 }
 

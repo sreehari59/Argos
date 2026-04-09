@@ -13,31 +13,77 @@ const VIEW_LABELS = {
   products: 'Product Intelligence View',
 }
 
-const VIEW_INSIGHTS = {
-  'full-chain': [
-    { title: 'Complete Traceability', value: 'All 357 unique raw materials shown with full supply chain', sub: 'Company → FG → RM → Supplier (consolidated from 876)' },
-    { title: 'Dominant Supplier', value: 'Prinova USA supplies materials to 60 companies', sub: 'Critical supply chain dependency' },
-    { title: 'Supply Risk', value: 'Single-source raw materials highlighted in red', sub: 'No backup supplier available' },
-    { title: '💰 Pricing Data', value: '33 products with pricing ($2.28-$45.00)', sub: 'Avg price: $21.09 | Click products to see prices' },
-  ],
-  materials: [
-    { title: 'Most Used RM', value: 'Magnesium stearate appears in 12 finished goods', sub: 'Top hub ingredient' },
-    { title: 'BOM Complexity', value: 'Avg 10.3 raw materials per finished good', sub: 'Range: 2 to 48 materials' },
-    { title: 'Critical Materials', value: 'Top 50 hub materials shown', sub: 'Click to see which products use them' },
-    { title: 'Single-Source', value: 'Red materials have only 1 supplier', sub: 'Supply disruption risk' },
-  ],
-  risk: [
-    { title: 'Highest Risk', value: 'Orgain whey vanilla: 54% single-source', sub: '7 of 13 materials from one supplier' },
-    { title: '💰 Price-Risk Link', value: 'High-risk products avg $29.97 vs $18.97 low-risk', sub: 'Single-source materials may increase costs' },
-    { title: 'Critical RMs', value: 'Single-source materials flagged', sub: 'Single supplier dependency' },
-    { title: 'Brand Risk', value: 'Optimum Nutrition: 42-44% single-source', sub: 'Multiple products affected' },
-  ],
-  products: [
-    { title: 'Identical Formulas', value: 'Equate products share 44 identical RMs', sub: 'Same formula, different packaging' },
-    { title: '💰 Whey Protein', value: 'Avg $28.72 ($21.98-$29.97)', sub: 'Premium category pricing' },
-    { title: 'Category Leaders', value: 'Nature Made: 6 product categories', sub: 'Highest diversity' },
-    { title: 'Certifications', value: '100% of whey proteins are gluten-free', sub: 'Category-wide standard' },
-  ],
+// ─── Dynamic insight builder ───
+function computeInsights(visibleNodes, data, view) {
+  if (!data || !visibleNodes || visibleNodes.length === 0) return []
+
+  const companies = visibleNodes.filter((n) => n.type === 'Company')
+  const fgs = visibleNodes.filter((n) => n.type === 'FinishedGood')
+  const rms = visibleNodes.filter((n) => n.type === 'RawMaterial')
+  const suppliers = visibleNodes.filter((n) => n.type === 'Supplier')
+  const insights = []
+
+  // ── Shared helpers ──
+  const singleSourceRMs = rms.filter((n) => n.isSingleSource)
+  const prices = fgs.map((n) => data.product_metadata[n.entityId]?.price_usd).filter(Boolean)
+
+  // 1) Overview insight
+  const parts = []
+  if (companies.length) parts.push(`${companies.length} companies`)
+  if (fgs.length) parts.push(`${fgs.length} products`)
+  if (rms.length) parts.push(`${rms.length} raw materials`)
+  if (suppliers.length) parts.push(`${suppliers.length} suppliers`)
+  insights.push({ title: 'Visible Nodes', value: parts.join(' · '), sub: `${view === 'full-chain' ? 'Company → FG → RM → Supplier' : view === 'materials' ? 'FG → RM' : view === 'risk' ? 'Risk concentration' : 'Product intelligence'}` })
+
+  // 2) Top supplier among visible
+  if (suppliers.length > 0) {
+    const topSupplier = [...suppliers].sort((a, b) => (b.rmCount || 0) - (a.rmCount || 0))[0]
+    if (topSupplier) {
+      insights.push({ title: 'Top Supplier', value: `${topSupplier.label} (${topSupplier.rmCount || 0} RMs, ${topSupplier.companyCount || 0} companies)`, sub: topSupplier.rmCount > 50 ? 'Critical supply chain dependency' : 'Key supplier in view' })
+    }
+  }
+
+  // 3) Supply risk
+  if (rms.length > 0) {
+    const pct = ((singleSourceRMs.length / rms.length) * 100).toFixed(0)
+    insights.push({ title: 'Supply Risk', value: `${singleSourceRMs.length} of ${rms.length} raw materials are single-source (${pct}%)`, sub: singleSourceRMs.length > 0 ? 'Red nodes = no backup supplier' : 'All visible materials have multiple suppliers' })
+  }
+
+  // 4) Most used RM
+  if (rms.length > 0) {
+    const topRM = [...rms].sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0))[0]
+    if (topRM) {
+      insights.push({ title: 'Most Used Material', value: `${topRM.label} — used in ${topRM.usageCount || 0} finished goods`, sub: topRM.isSingleSource ? 'Single-source risk' : `${topRM.supplierCount || 0} suppliers available` })
+    }
+  }
+
+  // 5) Pricing insight
+  if (prices.length > 0) {
+    const min = Math.min(...prices).toFixed(2)
+    const max = Math.max(...prices).toFixed(2)
+    const avg = (prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2)
+    insights.push({ title: 'Pricing Data', value: `${prices.length} products with pricing ($${min}–$${max})`, sub: `Avg price: $${avg}` })
+  }
+
+  // 6) BOM complexity
+  if (fgs.length > 0) {
+    const fgRmCounts = fgs.map((fg) => (data.fg_to_rms[fg.entityId] || []).length).filter((c) => c > 0)
+    if (fgRmCounts.length > 0) {
+      const avg = (fgRmCounts.reduce((a, b) => a + b, 0) / fgRmCounts.length).toFixed(1)
+      const max = Math.max(...fgRmCounts)
+      const min = Math.min(...fgRmCounts)
+      insights.push({ title: 'BOM Complexity', value: `Avg ${avg} raw materials per product`, sub: `Range: ${min} to ${max} materials` })
+    }
+  }
+
+  // 7) Highest risk FG (risk view or any view with risk data)
+  const riskyFGs = fgs.filter((n) => n.riskRatio > 0).sort((a, b) => b.riskRatio - a.riskRatio)
+  if (riskyFGs.length > 0) {
+    const top = riskyFGs[0]
+    insights.push({ title: 'Highest Risk Product', value: `${top.label}: ${(top.riskRatio * 100).toFixed(0)}% single-source`, sub: `${top.singleSourceCount}/${top.totalRM} materials from single supplier` })
+  }
+
+  return insights.slice(0, 5)
 }
 
 function nodeRadius(d) {
@@ -220,10 +266,10 @@ function buildGraphData(data, view) {
       }
     })
 
-    ;(data.product_similarity || []).forEach(([a, b, count, jacc]) => {
-      if (jacc >= 0.7 && nodeMap.has(`fg-${a}`) && nodeMap.has(`fg-${b}`))
-        links.push({ source: `fg-${a}`, target: `fg-${b}`, type: 'SIMILAR_PRODUCT', weight: count, jaccard: jacc })
-    })
+      ; (data.product_similarity || []).forEach(([a, b, count, jacc]) => {
+        if (jacc >= 0.7 && nodeMap.has(`fg-${a}`) && nodeMap.has(`fg-${b}`))
+          links.push({ source: `fg-${a}`, target: `fg-${b}`, type: 'SIMILAR_PRODUCT', weight: count, jaccard: jacc })
+      })
   }
 
   // Build adjacency
@@ -389,10 +435,10 @@ export default function KnowledgeGraph() {
           rmIds.forEach((rmId) => {
             visibleNodes.add(`rm-${rmId}`)
             visibleLinks.add(`fg-${fg.id}|rm-${rmId}`)
-            ;(data.rm_to_suppliers[rmId] || []).forEach((sid) => {
-              visibleNodes.add(`s-${sid}`)
-              visibleLinks.add(`s-${sid}|rm-${rmId}`)
-            })
+              ; (data.rm_to_suppliers[rmId] || []).forEach((sid) => {
+                visibleNodes.add(`s-${sid}`)
+                visibleLinks.add(`s-${sid}|rm-${rmId}`)
+              })
           })
         }
       })
@@ -403,21 +449,21 @@ export default function KnowledgeGraph() {
       visibleNodes.add(`fg-${fgId}`)
       visibleNodes.add(`c-${fg.company_id}`)
       visibleLinks.add(`fg-${fgId}|c-${fg.company_id}`)
-      ;(data.fg_to_rms[fgId] || []).forEach((rmId) => {
-        visibleNodes.add(`rm-${rmId}`)
-        visibleLinks.add(`fg-${fgId}|rm-${rmId}`)
-        ;(data.rm_to_suppliers[rmId] || []).forEach((sid) => {
-          visibleNodes.add(`s-${sid}`)
-          visibleLinks.add(`s-${sid}|rm-${rmId}`)
+        ; (data.fg_to_rms[fgId] || []).forEach((rmId) => {
+          visibleNodes.add(`rm-${rmId}`)
+          visibleLinks.add(`fg-${fgId}|rm-${rmId}`)
+            ; (data.rm_to_suppliers[rmId] || []).forEach((sid) => {
+              visibleNodes.add(`s-${sid}`)
+              visibleLinks.add(`s-${sid}|rm-${rmId}`)
+            })
         })
-      })
     }
     const addRMChain = (rmId) => {
       visibleNodes.add(`rm-${rmId}`)
-      ;(data.rm_to_suppliers[rmId] || []).forEach((sid) => {
-        visibleNodes.add(`s-${sid}`)
-        visibleLinks.add(`s-${sid}|rm-${rmId}`)
-      })
+        ; (data.rm_to_suppliers[rmId] || []).forEach((sid) => {
+          visibleNodes.add(`s-${sid}`)
+          visibleLinks.add(`s-${sid}|rm-${rmId}`)
+        })
       data.finished_goods.forEach((fg) => {
         if ((data.fg_to_rms[fg.id] || []).includes(rmId)) {
           visibleNodes.add(`fg-${fg.id}`)
@@ -429,18 +475,18 @@ export default function KnowledgeGraph() {
     }
     const addSupplierChain = (supplierId) => {
       visibleNodes.add(`s-${supplierId}`)
-      ;(data.supplier_to_rms[supplierId] || []).forEach((rmId) => {
-        visibleNodes.add(`rm-${rmId}`)
-        visibleLinks.add(`s-${supplierId}|rm-${rmId}`)
-        data.finished_goods.forEach((fg) => {
-          if ((data.fg_to_rms[fg.id] || []).includes(rmId)) {
-            visibleNodes.add(`fg-${fg.id}`)
-            visibleLinks.add(`fg-${fg.id}|rm-${rmId}`)
-            visibleNodes.add(`c-${fg.company_id}`)
-            visibleLinks.add(`fg-${fg.id}|c-${fg.company_id}`)
-          }
+        ; (data.supplier_to_rms[supplierId] || []).forEach((rmId) => {
+          visibleNodes.add(`rm-${rmId}`)
+          visibleLinks.add(`s-${supplierId}|rm-${rmId}`)
+          data.finished_goods.forEach((fg) => {
+            if ((data.fg_to_rms[fg.id] || []).includes(rmId)) {
+              visibleNodes.add(`fg-${fg.id}`)
+              visibleLinks.add(`fg-${fg.id}|rm-${rmId}`)
+              visibleNodes.add(`c-${fg.company_id}`)
+              visibleLinks.add(`fg-${fg.id}|c-${fg.company_id}`)
+            }
+          })
         })
-      })
     }
 
     if (activeFilters.companies.size > 0) activeFilters.companies.forEach(addCompanyChain)
@@ -484,20 +530,24 @@ export default function KnowledgeGraph() {
     return filterVis.visibleLinks.has(linkId) || filterVis.visibleLinks.has(rev)
   }, [])
 
-  // ─── Update legend counts based on visible (non-dimmed) nodes ───
+  // ─── Update legend counts and insights based on visible (non-dimmed) nodes ───
   const updateLegendCounts = useCallback(() => {
     const gs = graphStateRef.current
     if (!gs.nodeElements) return
     const counts = {}
+    const visible = []
     gs.nodeElements.each(function (d) {
       const dimmed = d3.select(this).classed('dimmed')
-      if (!dimmed) counts[d.type] = (counts[d.type] || 0) + 1
+      if (!dimmed) {
+        counts[d.type] = (counts[d.type] || 0) + 1
+        visible.push(d)
+      }
     })
     setLegendItems((prev) => prev.map((item) => ({
       ...item,
       count: counts[item.type] ?? 0,
     })))
-    const visibleNodes = Object.values(counts).reduce((a, b) => a + b, 0)
+    const visibleCount = Object.values(counts).reduce((a, b) => a + b, 0)
     let visibleEdges = 0
     if (gs.linkElements) {
       gs.linkElements.each(function () {
@@ -506,11 +556,12 @@ export default function KnowledgeGraph() {
     }
     const totalNodes = gs.allNodes.length
     const totalEdges = gs.allLinks.length
-    if (visibleNodes < totalNodes) {
-      setStats(`${visibleNodes} / ${totalNodes} nodes · ${visibleEdges} / ${totalEdges} edges`)
+    if (visibleCount < totalNodes) {
+      setStats(`${visibleCount} / ${totalNodes} nodes · ${visibleEdges} / ${totalEdges} edges`)
     } else {
       setStats(`${totalNodes} nodes · ${totalEdges} edges`)
     }
+    setInsights(computeInsights(visible, gs.data, gs.currentView))
   }, [])
 
   // ─── Apply filter dimming (clears selection first) ───
@@ -585,10 +636,10 @@ export default function KnowledgeGraph() {
 
     const neighbors = new Set()
     const connectedLinks = new Set()
-    ;(gs.adjacency.get(d.id) || []).forEach(({ linkIdx, neighbor }) => {
-      neighbors.add(neighbor)
-      connectedLinks.add(linkIdx)
-    })
+      ; (gs.adjacency.get(d.id) || []).forEach(({ linkIdx, neighbor }) => {
+        neighbors.add(neighbor)
+        connectedLinks.add(linkIdx)
+      })
 
     gs.nodeElements.classed('selected', (n) => n.id === d.id)
       .classed('neighbor', (n) => neighbors.has(n.id))
@@ -768,7 +819,7 @@ export default function KnowledgeGraph() {
           [['MANUFACTURED_BY', 'FG → Company'], ['SUPPLIES', 'Supplier → Company']]
     setEdgeItems(edgeTypesList.map(([type, label]) => ({ type, label, color: LINK_COLORS[type] })))
 
-    setInsights(VIEW_INSIGHTS[view] || [])
+    setInsights(computeInsights(nodes, data, view))
   }, [selectNode, clearSelection])
 
   // ─── Switch view ───
@@ -963,13 +1014,19 @@ export default function KnowledgeGraph() {
                 <span className="kg-count">{item.count}</span>
               </div>
             ))}
-            {edgeItems.map((item) => (
+            {/* {edgeItems.map((item) => (
               <div key={item.type} className="kg-legend-item">
                 <span className="kg-dot" style={{ background: item.color, borderRadius: 2, width: 14, height: 3 }} />
                 <span style={{ fontSize: 11 }}>{item.label}</span>
               </div>
-            ))}
+            ))} */}
           </div>
+        </div>
+
+        {/* Details */}
+        <div className="kg-details" ref={detailsRef}>
+          <h3>Details</h3>
+          <p className="empty">Click a node to explore supply chain</p>
         </div>
 
         {/* Insights */}
@@ -982,12 +1039,6 @@ export default function KnowledgeGraph() {
               <div className="kg-insight-sub">{ins.sub}</div>
             </div>
           ))}
-        </div>
-
-        {/* Details */}
-        <div className="kg-details" ref={detailsRef}>
-          <h3>Details</h3>
-          <p className="empty">Click a node to explore supply chain</p>
         </div>
       </div>
 

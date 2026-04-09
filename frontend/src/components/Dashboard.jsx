@@ -219,10 +219,6 @@ export default function Dashboard({ onSelectCompany }) {
           <div className="stat-value">{stats.node_types.supplier}</div>
           <div className="stat-label">Suppliers</div>
         </div>
-        <div className="stat-card">
-          <div className="stat-value">{topRecs.length}</div>
-          <div className="stat-label">Top Recommendations</div>
-        </div>
       </div>
 
       <div className="card">
@@ -375,7 +371,7 @@ export default function Dashboard({ onSelectCompany }) {
                 <td>{company.Name}</td>
                 <td>{company.product_count}</td>
                 <td>
-                  <button 
+                  <button
                     className="btn btn-primary"
                     onClick={() => onSelectCompany(company.Id)}
                   >

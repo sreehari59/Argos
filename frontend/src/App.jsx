@@ -33,7 +33,7 @@ function App() {
     <div className="app">
       <nav className="navbar">
         <div className="nav-brand">
-          <h1>Agnes</h1>
+          <img src="/ArgosDark.svg" alt="Argos" style={{ height: '2rem' }} />
           <div className="subtitle">AI Supply Chain Intelligence</div>
         </div>
         <div className="nav-links">

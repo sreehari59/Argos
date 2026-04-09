@@ -1548,7 +1548,8 @@ h3 {
   display: grid;
   grid-template-columns: 400px 1fr;
   gap: 1.5rem;
-  min-height: 600px;
+  height: calc(100vh - 250px);
+  min-height: 500px;
 }
 
 /* Ingredient List Panel */
@@ -1680,7 +1681,7 @@ h3 {
   border: 1px solid var(--border);
   border-radius: 1rem;
   overflow-y: auto;
-  max-height: calc(100vh - 250px);
+  height: 100%;
 }
 
 .empty-state {

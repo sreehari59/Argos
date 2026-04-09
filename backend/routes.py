@@ -1,6 +1,9 @@
 """
 FastAPI route handlers for Agnes Network Intelligence API.
 """
+import json
+from functools import lru_cache
+from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 from fastapi import APIRouter, HTTPException
@@ -10,6 +13,25 @@ from graph import get_graph, get_graph_json
 from ingredients import parse_ingredient_name
 
 router = APIRouter(prefix="/api")
+ENRICHED_PRODUCTS_PATH = Path(__file__).parent.parent / "enriched_products.json"
+
+
+@lru_cache(maxsize=1)
+def _load_enriched_url_map() -> Dict[str, str]:
+    """Build a sku -> product URL map from enriched_products.json."""
+    try:
+        with open(ENRICHED_PRODUCTS_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return {}
+
+    return {
+        item.get("sku"): item.get("url")
+        for item in data
+        if item.get("sku")
+        and isinstance(item.get("url"), str)
+        and item["url"].startswith(("http://", "https://"))
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -567,6 +589,12 @@ def get_consolidation_opportunities(company_id: Optional[int] = None):
     from consolidation import find_consolidation_opportunities
     
     return find_consolidation_opportunities(company_id)
+
+
+@router.get("/enrichment-url-map")
+def get_enrichment_url_map():
+    """Get a map of product SKU to source URL for frontend deep-linking."""
+    return _load_enriched_url_map()
 
 
 # ---------------------------------------------------------------------------

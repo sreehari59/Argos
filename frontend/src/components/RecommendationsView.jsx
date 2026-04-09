@@ -51,7 +51,7 @@ function MiniBar({ value, label, color }) {
   )
 }
 
-function RecCard({ rec, rank }) {
+function RecCard({ rec, rank, productUrl }) {
   const [expanded, setExpanded] = useState(false)
   const roleColor = ROLE_COLORS[rec.functional_role] || '#6366f1'
   const isFormVariant = rec.family_type === 'form_variant'
@@ -91,10 +91,52 @@ function RecCard({ rec, rank }) {
           <div style={{ flex: 1, minWidth: 0 }}>
             {/* Top line: company + product */}
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.625rem', marginBottom: '0.625rem', flexWrap: 'wrap' }}>
-              <span style={{ fontWeight: 700, fontSize: '0.9375rem', color: 'var(--text)', letterSpacing: '-0.01em' }}>{rec.company_name}</span>
-              <span style={{ fontSize: '0.6875rem', color: 'var(--text-dim)', fontFamily: 'monospace', background: 'rgba(255,255,255,0.03)', padding: '0.125rem 0.5rem', borderRadius: '0.25rem' }}>
-                {rec.product_sku}
-              </span>
+              {productUrl ? (
+                <a
+                  href={productUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    fontWeight: 700,
+                    fontSize: '0.9375rem',
+                    color: 'var(--primary-light)',
+                    letterSpacing: '-0.01em',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: '2px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {rec.company_name}
+                </a>
+              ) : (
+                <span style={{ fontWeight: 700, fontSize: '0.9375rem', color: 'var(--text)', letterSpacing: '-0.01em' }}>{rec.company_name}</span>
+              )}
+              {productUrl ? (
+                <a
+                  href={productUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    fontSize: '0.6875rem',
+                    color: 'var(--text-dim)',
+                    fontFamily: 'monospace',
+                    background: 'rgba(255,255,255,0.03)',
+                    padding: '0.125rem 0.5rem',
+                    borderRadius: '0.25rem',
+                    border: '1px solid var(--border)',
+                    textDecoration: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {rec.product_sku}
+                </a>
+              ) : (
+                <span style={{ fontSize: '0.6875rem', color: 'var(--text-dim)', fontFamily: 'monospace', background: 'rgba(255,255,255,0.03)', padding: '0.125rem 0.5rem', borderRadius: '0.25rem' }}>
+                  {rec.product_sku}
+                </span>
+              )}
             </div>
 
             {/* Substitution: current → substitute */}
@@ -289,6 +331,7 @@ function WeightSliders({ weights, onChange }) {
 export default function RecommendationsView() {
   const [topRecs, setTopRecs] = useState([])
   const [consolidation, setConsolidation] = useState([])
+  const [urlMap, setUrlMap] = useState({})
   const [typeFilter, setTypeFilter] = useState('all')
   const [roleFilter, setRoleFilter] = useState('all')
   const [visibleCount, setVisibleCount] = useState(15)
@@ -305,6 +348,14 @@ export default function RecommendationsView() {
       .then(res => res.json())
       .then(data => setConsolidation(data))
       .catch(err => console.error('Failed to load consolidation:', err))
+
+    fetch(`${API_BASE}/enrichment-url-map`)
+      .then(res => res.json())
+      .then(data => setUrlMap(data || {}))
+      .catch(err => {
+        console.error('Failed to load enrichment URL map:', err)
+        setUrlMap({})
+      })
   }, [])
 
   const roles = Array.from(new Set(topRecs.map(r => r.functional_role))).sort()
@@ -462,7 +513,12 @@ export default function RecommendationsView() {
           <>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
               {visible.map((rec, idx) => (
-                <RecCard key={rec.id || idx} rec={rec} rank={idx + 1} />
+                <RecCard
+                  key={rec.id || idx}
+                  rec={rec}
+                  rank={idx + 1}
+                  productUrl={urlMap[rec.product_sku]}
+                />
               ))}
             </div>
 
